@@ -1,0 +1,138 @@
+---
+title: TypeScript SDK
+description: NIB printer SDK integration guide for Web, mini-programs, Node, and bridge runtimes.
+sidebar:
+  order: 3
+---
+
+import SdkApiReference from '../../../../components/docs/SdkApiReference.astro';
+
+
+The TypeScript SDK is suitable for Web, mini-programs, UniApp, Taro, Node tools, and native bridge runtimes. When starting, keep one rule in mind: template code only generates print commands, and platform code only writes bytes into the printer.
+
+## Package selection
+
+| Package | Purpose |
+| --- | --- |
+| `@boxliy/nib` | Standard aggregate package that exports core, Boxliy/Aryten/Lin8inch dialects, and image capabilities. |
+| `@nib/core` | `ConnectedDevice`, `writeTo()`, `WriteOptions`, receive sources, and query dispatch. |
+| `@nib/esc-boxliy`, `@nib/tspl-boxliy`, `@nib/cpcl-boxliy` | Boxliy ESC, TSPL, and CPCL command builders and response parsers. |
+| `@nib/esc`, `@nib/tspl`, `@nib/cpcl` | Aryten-compatible dialects. |
+| `@nib/esc-lin8inch`, `@nib/tspl-lin8inch` | Lin8inch dialects. |
+| `@nib/bluetooth-ble-core` | BLE characteristic selection, UUID matching, and credit flow control. |
+| `@nib/wechat-bluetooth-ble`, `@nib/uniapp-bluetooth-ble`, `@nib/taro-bluetooth-ble` | BLE adapters for WeChat, UniApp, and Taro. |
+| `@nib/webusb` | Browser WebUSB connection. |
+
+If you are not sure where to start, business projects usually start with `@boxliy/nib`. Depend on lower-level modules directly only when you need package splitting or capability trimming.
+
+## ConnectedDevice contract
+
+All platform adapters eventually provide core's `ConnectedDevice`:
+
+```ts
+interface ConnectedDevice {
+  origin(): any
+  deviceName(): string
+  connectionState(): ConnectionState
+  disconnect(): Promise<void>
+  canRead(): boolean
+  write(data: Uint8Array): Promise<void>
+  read(options?: ReadOptions): Promise<Uint8Array>
+  notify(callback: (value: Uint8Array) => Promise<void>): void
+  flush(): void
+}
+```
+
+WeChat, mini-program frameworks, WebUSB, and native App APIs can all be completely different. Once they are wrapped as this interface, the same print templates can be reused.
+
+## First print
+
+Start with a TSPL label example because it clearly expresses paper size, clearing the canvas, placing text, and print count:
+
+```ts
+import { TsplAryten } from '@boxliy/nib'
+
+await TsplAryten.create()
+  .size(40, 30)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print()
+  .writeTo(device)
+```
+
+`writeTo(device)` writes the bytes in the builder to the device, then clears the current builder. You can also get the bytes first and write manually:
+
+```ts
+import { WriteOptions, writeTo } from '@boxliy/nib'
+
+const data = TsplAryten.create()
+  .size(40, 30)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print()
+  .bytes()
+
+await writeTo(device, data, new WriteOptions(true, 512))
+```
+
+`writeTo()` enables chunked writing by default, with a default chunk size of `512` bytes. Consider disabling chunking only when the device or platform API already handles it.
+
+## ESC text notes
+
+Do not mix examples from different languages or dialects. The current TypeScript `EscBoxliy` is suitable for ESC commands, queries, images, and related capabilities, but it does not use the Java/Swift-style `text('...')` example shape. For normal text content, use the TSPL/CPCL `text(...)` API, or generate raw bytes through the methods supported by the specific ESC dialect.
+
+```ts
+import { EscBoxliy } from '@boxliy/nib'
+
+const script = EscBoxliy.create()
+  .reset()
+  .feed(2)
+  .bytes()
+
+await writeTo(device, script)
+```
+
+## BLE credit flow control
+
+`@nib/bluetooth-ble-core` provides two credit strategies:
+
+| API | Purpose |
+| --- | --- |
+| `BleLaneCreditFlowControlStrategy` | Default lane-credit strategy that writes chunks according to credits and MTU. |
+| `BleSignalCreditFlowControlStrategy` | signal-credit strategy for devices with different credit notification semantics. |
+| `BleCreditOptions` | Configures service UUID, write/read/credit characteristics, initial credit, MTU, and fallback. |
+| `selectBleCreditCharacteristicPair()` | Finds write, read, and credit characteristics from a service list by UUID. |
+
+Default UUIDs are:
+
+| Item | Default |
+| --- | --- |
+| service | `FF00` |
+| write characteristic | `FF02` |
+| read characteristic | `FF01` |
+| credit characteristic | `FF03` |
+
+The default lane-credit initial credit is `1`, the initial MTU is `20`, and payload overhead is `3`. signal-credit defaults to initial credit `0` and payload overhead `0`. If `fallbackMode: 'bypass-write'` is enabled, credit timeout can fall back to normal writes. The default behavior is to fail.
+
+## Receiving, querying, and parsing
+
+Common core receive and query types include `ReceiveSource`, `PollingReceiveSource`, `CallbackReceiveSource`, `NotifyReceiveSource`, `receiveSourceOf()`, `QueryDispatcher`, and `PendingQuery`.
+
+Boxliy dialects provide response parsers:
+
+| Dialect | Parser |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+When querying status, first generate and write the query command with a dialect builder, then pass device responses to the corresponding parser. Keep parsing logic in the print session layer, not scattered across UI components.
+
+<SdkApiReference sdk="typescript" locale="root" />
+
+## Practical recommendations
+
+- Confirm whether the printer supports ESC, TSPL, or CPCL before choosing a builder.
+- Keep platform Bluetooth, USB, and bridge APIs in the adapter layer. The template layer only generates bytes.
+- Keep byte snapshot tests for every template so UI changes do not break commands.
+- BLE devices must be validated on real hardware for MTU, chunk size, credit notifications, and reconnect behavior.

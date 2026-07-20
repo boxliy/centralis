@@ -1,0 +1,60 @@
+---
+title: 错误处理
+description: SDK 接入时常见错误的边界和处理方式。
+sidebar:
+  order: 8
+---
+
+错误处理的目标不是把异常吞掉，而是判断它发生在哪一层。层级判断清楚后，排查会快很多：连接问题不要改模板，指令不支持不要靠重试，缺纸也不是 BLE MTU 的问题。
+
+## 错误分类
+
+| 类型 | 常见原因 | 处理方向 |
+| --- | --- | --- |
+| 连接错误 | 蓝牙权限未开、设备未配对、service/characteristic UUID 不匹配、网络不可达、连接超时。 | 回到连接流程，检查权限、设备选择、UUID、地址和平台状态。 |
+| 写入错误 | 连接中断、平台 write API 返回失败、分片过大、write with/without response 模式不匹配。 | 缩小分片，确认写入模式，记录失败发生在第几个 chunk。 |
+| 流控错误 | BLE credit 没有到达、MTU/credit notify 格式不匹配、credit 超时、错误使用 `bypass-write`。 | 确认是否需要 `lane-credit` 或 `signal-credit`，检查 notify 是否被订阅并路由到 flow control。 |
+| 查询错误 | pending query 超时、matcher 不匹配、receive source 未启动、设备不支持该查询。 | 检查查询指令、timeout、notify/read 来源和方言 parser。 |
+| 指令错误 | 设备不支持当前 ESC、TSPL 或 CPCL 指令，或使用了错误方言。 | 切换到设备支持的指令集，减少设备不支持的扩展命令。 |
+| 内容错误 | 纸宽不匹配、图片过宽、编码不兼容、标签坐标超出页面、payload 过大。 | 回到模板和图片处理层，确认宽度、编码、坐标和最终字节大小。 |
+
+## 新手排查顺序
+
+按这个顺序排查，通常能避免在错误层里打转：
+
+1. 先确认连接：设备是否真的 connected，权限、UUID、地址和系统蓝牙状态是否正确。
+2. 再发最小内容：只打印一小段文本或一条简单标签，确认基础写入可用。
+3. 再看分片和 BLE：如果小内容正常、大内容失败，检查 chunk size、MTU、write mode 和 credit。
+4. 再看状态查询：如果打印可用但状态读不到，检查 receive source、notify/read、pending query timeout 和 parser。
+5. 最后看模板内容：如果只有特定模板失败，检查纸宽、图片宽度、编码、条码/二维码参数和指令支持。
+
+## 日志怎么记
+
+日志要能定位阶段，但不要记录敏感打印内容。建议记录：
+
+| 可以记录 | 避免记录 |
+| --- | --- |
+| SDK 语言和版本、平台、传输方式。 | 小票正文、收件人、手机号、地址、订单明细等敏感内容。 |
+| 设备名称或脱敏后的设备 ID、service/characteristic UUID。 | 完整业务 payload 或未脱敏的用户数据。 |
+| 指令族、总字节数、chunk size、chunk index、write mode。 | 可还原打印内容的 raw bytes。 |
+| MTU、payload MTU、credit 策略、credit timeout、fallback mode。 | 生产环境长期开启的超详细二进制 dump。 |
+| 查询类型、timeout、是否收到 raw response、parser 结果类型。 | 包含客户信息的 parser 文本字段。 |
+
+调试阶段需要看 raw bytes 时，优先只记录长度、前几个字节、hash 或脱敏后的 hex 片段，并确保不会进入长期生产日志。
+
+## 症状对照表
+
+| 症状 | 可能层级 | 下一步检查 |
+| --- | --- | --- |
+| 扫描不到设备 | 连接 | 权限、蓝牙开关、设备是否广播、平台 discovery filter。 |
+| 能扫描但连接失败 | 连接 | 地址/设备对象是否过期，service UUID 是否匹配，连接超时是否过短。 |
+| 连接成功但完全不打印 | 写入 / 指令 | 写入 characteristic 是否正确，最小文本是否能打印，指令族是否支持。 |
+| 打印一半或大图失败 | 写入 / 流控 / 内容 | chunk size、BLE MTU、credit、图片宽度和 payload 总大小。 |
+| 开启 credit 后卡住 | 流控 | credit notify 是否订阅成功，通知是否进入 `lane-credit` 或 `signal-credit`，timeout 是否合理。 |
+| `bypass-write` 能打印，`fail` 模式超时 | 流控 | 设备可能不需要 credit，或 credit 特征值/通知格式配置错误。 |
+| 查询状态一直超时 | 查询 / 接收 | receive source 是否启动，notify/read 是否有数据，matcher 和查询指令是否匹配。 |
+| 收到 response 但结果是 unknown | 查询 / parser | raw bytes 已到达，检查方言、查询类型和固件回包格式。 |
+| 小票乱码 | 内容 / 指令 | 字符编码、代码页、字体和设备语言设置。 |
+| 缺纸仍继续写入 | 状态 / 产品逻辑 | 设备是否支持缺纸状态，应用是否在写入前/写入中读取并处理状态。 |
+
+排查时尽量保留“发生在哪一层”的原始错误信息，再把它转换成用户能理解的提示，例如“请检查打印机是否缺纸”或“请重新连接打印机”。

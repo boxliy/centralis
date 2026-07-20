@@ -1,0 +1,16 @@
+---
+title: TSPL 指令
+description: TSPL 協議下的 Boxliy、Aryten、Lin8inch 指令 Family。
+sidebar:
+  order: 6
+---
+
+TSPL 通常用於標籤頁：明確尺寸、間隙、濃度、坐標、文本、條碼、二維碼和位圖位置。
+
+| Family | 構建器 | 說明 |
+| --- | --- | --- |
+| Boxliy | `TsplBoxliy` | 標籤尺寸、坐標、文本、圖形、條碼、二維碼、圖片和查詢。 |
+| Aryten | `TsplAryten` | 繼承 Boxliy TSPL 的公開指令面。 |
+| Lin8inch | `TsplLin8inch` | 繼承 Boxliy，增加 8 寸狀態、介質、色帶、出紙和設備信息擴展。 |
+
+如果機器是固定標籤場景，TSPL 通常更容易描述尺寸和坐標，但最終仍要以機器支持為準。

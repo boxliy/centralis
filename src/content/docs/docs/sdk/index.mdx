@@ -1,0 +1,58 @@
+---
+title: Printer SDK
+description: Multi-language printer SDK integration guide for applications, drivers, and device collaboration.
+sidebar:
+  order: 1
+---
+
+The Printer SDK is the entry point for adding NIB printing capabilities to an application. It does not try to guess printer capabilities for you. Instead, it organizes the device, command set, and connection method you have already confirmed into a consistent printing flow across languages.
+
+Start with this mental model:
+
+```text
+command builder -> script/bytes -> connected device -> chunked/flow-controlled writes -> optional status reads
+```
+
+In other words, template code only generates ESC, TSPL, or CPCL bytes. Connection code obtains an already connected device object. The write pipeline then writes those bytes to the device according to the current transport. Status reads are optional and should be integrated only when the device, command set, and connection layer all support them.
+
+## Reading path
+
+| Goal | Start with |
+| --- | --- |
+| Integrate the SDK for the first time | [Quickstart](./quickstart/) |
+| Prepare project integration details | [Prerequisites](./prerequisites/) |
+| Understand how the SDK is layered | [SDK architecture](./architecture/) |
+| Handle Bluetooth, USB, network, or platform bridges | [Device connection](./connection/) |
+| Handle BLE chunking, credits, and write pacing | [Writes and flow control](./flow-control/) |
+| Read battery, paper-out, version, or query responses | [Status reads](./status/) |
+| Handle connection failures, write failures, and unresponsive devices | [Error handling](./errors/) |
+
+For a first integration, read in this order: start with [Prerequisites](./prerequisites/) to collect the facts, use [Quickstart](./quickstart/) to print a line of text, then read [Device connection](./connection/) to adapt your platform connection into a connected device. After printing is stable, move on to [Writes and flow control](./flow-control/) and [Status reads](./status/).
+
+## Selection order
+
+Before choosing a package or example, determine these four facts from the outside in:
+
+1. Printer Family: Boxliy, Aryten, or Lin8inch.
+2. Command family: ESC, TSPL, or CPCL, based on the actual printer firmware.
+3. Transport: BLE, classic Bluetooth, USB / WebUSB, network, or a mini-program / cross-platform framework bridge.
+4. Language package: TypeScript, Dart, Java, Objective-C, or Swift.
+
+This order avoids a common mistake: writing code from a language example first, then discovering that the machine does not use that command family, or that the current platform cannot access the BLE characteristic required by the example.
+
+## Language integrations
+
+| Language | Common runtime | connected device shape | Docs |
+| --- | --- | --- | --- |
+| TypeScript | Web, Node, mini-programs, Taro, UniApp, WebUSB | `ConnectedDevice`, with `write()` and optional `read()` / `notify()` | [TypeScript SDK](./typescript/) |
+| Dart | Flutter, mobile, cross-platform clients | `ConnectedDevice<T>`, with `write()`, `read()` stream, and connection state | [Dart SDK](./dart/) |
+| Java | Android, JVM tools, network or Bluetooth integration | `Device`, with `write()`, `read()`, and `close()` | [Java SDK](./java/) |
+| Objective-C | Existing iOS projects, mixed-language projects | `BNDevice`, with `writeData:error:` and `readWithTimeout:error:` | [Objective-C SDK](./objective-c/) |
+| Swift | iOS, macOS, CoreBluetooth | `NibDevice`, with `write(_:)` and `read(maxLength:)` | [Swift SDK](./swift/) |
+
+## Not covered in this section
+
+| Topic | Current location |
+| --- | --- |
+| Specific ESC, TSPL, and CPCL commands | The "Commands" section in the sidebar. |
+| Printing text, barcodes, QR codes, images, and similar content | To be documented separately. |

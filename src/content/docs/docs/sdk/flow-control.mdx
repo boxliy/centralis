@@ -1,0 +1,72 @@
+---
+title: Flow Control
+description: How NIB handles chunked writes, BLE MTU, and credit pacing.
+sidebar:
+  order: 3
+---
+
+Flow control determines "how small, how fast, and when to wait" while an application writes print data to a device. For a first integration, think of it as three things:
+
+1. Split the complete command bytes into chunks.
+2. Write only the size the current transport can handle reliably each time.
+3. If the BLE device requires credits, wait for device notifications before continuing.
+
+Dialect builders only generate ESC, TSPL, or CPCL bytes. Chunk size, write mode, BLE credits, and failure handling should live in the device, connection, or print session layer.
+
+## Normal chunking
+
+Normal chunking does not understand printer command semantics. It only splits the final payload by byte count. For example, a 3000-byte payload with 1024-byte chunks is written as 1024, 1024, and 952 bytes.
+
+The default normal chunk size differs by language core:
+
+| SDK | Default chunk size |
+| --- | --- |
+| TypeScript | 512 bytes |
+| Dart | 1024 bytes |
+| Java | 1024 bytes |
+| Swift | 512 bytes |
+| Objective-C | 512 bytes |
+
+These defaults are suitable starting points for normal transports. They are not the best value for every BLE device. If packets are lost, writes fail, or only part of the content prints, first confirm the device maximum write length, platform write API limits, and whether BLE credits are required.
+
+## BLE MTU
+
+The BLE MTU is the maximum size of one ATT packet. It is not the complete business payload size an application can freely write. A conservative starting value is 20 bytes. If the platform or device negotiates an MTU, NIB BLE helpers use `mtu - 3` as the payload size because the ATT header usually takes 3 bytes.
+
+For example, with a negotiated MTU of 185, the recommended payload is 182 bytes. This is still chunked writing; the chunk size just comes from the BLE MTU instead of the normal default.
+
+## BLE Credit
+
+Some BLE printers do not allow applications to write continuously. The device uses notify to tell the SDK how many packets can currently be written. The SDK consumes one credit to write one chunk, then waits for the next notification when credits are exhausted.
+
+NIB currently has two credit strategies, and more strategies or device-Family-specific strategies may be added in the future:
+
+| Strategy | Mechanism | Suitable for |
+| --- | --- | --- |
+| `lane-credit` | Reads the device credit notify. Notifications can update both MTU and writable credits. Each payload chunk consumes one credit. | Devices with fixed read/notify/credit characteristics where credit notifications represent the main write lane capacity. |
+| `signal-credit` | Uses a dedicated signal/credit notification to control writes. MTU notifications can arrive separately, and writes are released only after credit notifications arrive. | Devices that separate "signal" from normal read responses, or require a dedicated signal characteristic to control pacing. |
+
+The default BLE credit starting point for `lane-credit` is usually better for "write by credits after observing valid notifications". `signal-credit` defaults to 0 credits and must wait for a positive credit notification before writing. During integration, confirm the service UUID, write characteristic, read/notify characteristic, credit characteristic, MTU format, and credit notification format.
+
+## fallback / fail / bypass-write
+
+The most common issue in credit mode is enabling credits while the device does not send notify as expected. NIB handles this in two modes:
+
+| Mode | Behavior |
+| --- | --- |
+| `fail` | Fails directly when credits do not arrive, surfaced as a write or BLE credit timeout. Suitable for production integrations and strict validation. |
+| `bypass-write` | If credits are not activated or waiting for credits times out, bypasses credit control and sends the remaining data through the normal write path. Suitable for joint debugging, compatibility testing, or confirming that the device does not actually require credits. |
+
+Do not treat `bypass-write` as a long-term default. It helps answer "can the device print without credits?", but if the device truly depends on credits, bypassing them can still lose packets, stall, or print only partial content.
+
+## How to choose
+
+Choose from simple to complex:
+
+1. USB, network, classic Bluetooth, and other stable streaming transports: start with the SDK default normal chunking.
+2. BLE without device-specific requirements: start with a conservative 20 bytes, or use the platform maximum write length.
+3. BLE with negotiated MTU: use `mtu - 3` as the payload chunk.
+4. BLE documentation or packet captures show credit notify: enable `lane-credit` or `signal-credit` according to the device protocol.
+5. Unsure whether credits are required: during joint debugging, use `bypass-write` briefly for comparison. Before release, switch to an explicit credit strategy or normal chunking strategy.
+
+If "small text works, but large images or long labels fail", the issue is usually not command generation. It is usually chunking, MTU, credits, or platform write mode not matching the device.

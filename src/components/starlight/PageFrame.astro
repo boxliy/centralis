@@ -1,0 +1,46 @@
+---
+const { starlightRoute } = Astro.locals;
+const hasSidebar = Astro.slots.has('sidebar');
+const locale = starlightRoute.locale || 'root';
+const copy = {
+	root: {
+		archive: 'QISHU DOCUMENT ARCHIVE',
+		title: 'Qishu Archives',
+		body: 'A shared entry for product documents, interface references, engineering notes, and release-ready delivery records.',
+	},
+	'zh-hans': {
+		archive: '启枢科技文档',
+		title: '启枢档案馆',
+		body: '这里是后续撰写产品文档的入口页。左侧负责文档分类与章节层级，右侧保留正式文档正文、提示块、代码、表格与上一页 / 下一页的位置。',
+	},
+	'zh-hant': {
+		archive: '啟樞科技文檔',
+		title: '啟樞檔案館',
+		body: '這裡是後續撰寫產品文檔的入口頁。左側負責文檔分類與章節層級，右側保留正式文檔正文、提示塊、程式碼、表格與上一頁 / 下一頁的位置。',
+	},
+	ko: {
+		archive: 'QISHU DOCUMENT ARCHIVE',
+		title: 'Qishu Archives',
+		body: '제품 문서, 인터페이스 자료, 엔지니어링 기록을 위한 공통 입구입니다.',
+	},
+	ja: {
+		archive: 'QISHU DOCUMENT ARCHIVE',
+		title: '啓枢アーカイブ',
+		body: '製品ドキュメント、インターフェース資料、エンジニアリング記録の入口です。',
+	},
+};
+const t = copy[locale as keyof typeof copy] ?? copy.root;
+---
+
+<div class="od-docs site">
+	<header class="nav" aria-label="主導覽"><slot name="header" /></header>
+	<main id="top">
+		<div class="eyebrow">{t.archive}</div>
+		<h1>{t.title}</h1>
+		<p class="hero-copy">{t.body}</p>
+		<div class:list={['docs-layout', { 'no-sidebar': !hasSidebar }]}>
+			<slot name="sidebar" />
+			<slot />
+		</div>
+	</main>
+</div>

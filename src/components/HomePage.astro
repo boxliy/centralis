@@ -1,0 +1,928 @@
+---
+import { defaultLocale, getHomeCopy, getLocalePath, localeLabels, locales, type Locale, withProductAssets } from '../i18n/home';
+
+interface Props {
+	locale?: Locale;
+}
+
+const locale = Astro.props.locale ?? defaultLocale;
+const t = getHomeCopy(locale);
+const products = withProductAssets(locale);
+const localePathMap = Object.fromEntries(locales.map((item) => [item, getLocalePath(item)]));
+const languageOptions = locales.map((item) => ({ locale: item, label: localeLabels[item], href: getLocalePath(item), active: item === locale }));
+const siteOrigin = Astro.site ?? new URL('https://qishusolution.com');
+const canonicalUrl = new URL(getLocalePath(locale), siteOrigin).href;
+const socialImageUrl = new URL('/hero/qishu-printer-ecosystem-light.webp', siteOrigin).href;
+const hreflangMap: Record<Locale, string> = {
+	en: 'en',
+	'zh-hans': 'zh-Hans',
+	'zh-hant': 'zh-Hant',
+	ko: 'ko',
+	ja: 'ja',
+};
+const ogLocaleMap: Record<Locale, string> = {
+	en: 'en_US',
+	'zh-hans': 'zh_CN',
+	'zh-hant': 'zh_TW',
+	ko: 'ko_KR',
+	ja: 'ja_JP',
+};
+const keywordsMap: Record<Locale, string> = {
+	en: 'thermal printer development, printer SDK, PCBA, firmware development, printer app, label printer, embedded software, production coordination',
+	'zh-hans': '热敏打印机开发, 打印机SDK, PCBA, 固件开发, 打印机App, 标签打印机, 嵌入式软件, 量产协作',
+	'zh-hant': '熱敏打印機開發, 打印機SDK, PCBA, 固件開發, 打印機App, 標籤打印機, 嵌入式軟體, 量產協作',
+	ko: '감열 프린터 개발, 프린터 SDK, PCBA, 펌웨어 개발, 프린터 앱, 라벨 프린터, 임베디드 소프트웨어, 양산 협업',
+	ja: '感熱プリンター開発, プリンターSDK, PCBA, ファームウェア開発, プリンターアプリ, ラベルプリンター, 組み込みソフトウェア, 量産連携',
+};
+const alternateLinks = locales.map((item) => ({ locale: hreflangMap[item], href: new URL(getLocalePath(item), siteOrigin).href }));
+const structuredData = [
+	{
+		'@context': 'https://schema.org',
+		'@type': 'Organization',
+		name: locale === 'en' ? 'Qishu Technology' : '启枢科技',
+		legalName: t.footer.company,
+		url: siteOrigin.href,
+		logo: new URL('/logo-light.png', siteOrigin).href,
+		email: 'hello@qishusolution.com',
+		sameAs: ['https://github.com/boxliy/centralis'],
+	},
+	{
+		'@context': 'https://schema.org',
+		'@type': 'WebSite',
+		name: locale === 'en' ? 'Qishu Technology' : '启枢科技',
+		url: siteOrigin.href,
+		inLanguage: t.lang,
+		publisher: {
+			'@type': 'Organization',
+			name: locale === 'en' ? 'Qishu Technology' : '启枢科技',
+		},
+	},
+	{
+		'@context': 'https://schema.org',
+		'@type': 'Service',
+		name: t.meta.title,
+		description: t.meta.description,
+		serviceType: 'Thermal printing product development',
+		provider: {
+			'@type': 'Organization',
+			name: locale === 'en' ? 'Qishu Technology' : '启枢科技',
+			url: siteOrigin.href,
+		},
+		areaServed: 'Worldwide',
+	},
+];
+const moduleEntries = t.product.tabs.map(([key, label]) => ({ key, label, module: t.product.modules[key] }));
+const defaultModule = moduleEntries[0];
+const planEntries = Object.entries(t.pricing.plans);
+const defaultPlan = planEntries[0][1];
+const moduleData = Object.fromEntries(moduleEntries.map((entry) => [entry.key, entry.module]));
+const planData = Object.fromEntries(planEntries);
+const contactEmail = 'hello@qishusolution.com';
+---
+
+<!doctype html>
+<html lang={t.lang} dir={t.dir} data-theme="dark">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="description" content={t.meta.description} />
+		<meta name="keywords" content={keywordsMap[locale]} />
+		<meta name="author" content={t.footer.company} />
+		<meta name="robots" content="index, follow, max-image-preview:large" />
+		<meta name="theme-color" content="#0a0e27" media="(prefers-color-scheme: dark)" />
+		<meta name="theme-color" content="#f3f7ff" media="(prefers-color-scheme: light)" />
+		<title>{t.meta.title}</title>
+		<link rel="canonical" href={canonicalUrl} />
+		{alternateLinks.map((item) => <link rel="alternate" hreflang={item.locale} href={item.href} />)}
+		<link rel="alternate" hreflang="x-default" href={new URL('/', siteOrigin).href} />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content={locale === 'en' ? 'Qishu Technology' : '启枢科技'} />
+		<meta property="og:title" content={t.meta.title} />
+		<meta property="og:description" content={t.meta.description} />
+		<meta property="og:url" content={canonicalUrl} />
+		<meta property="og:image" content={socialImageUrl} />
+		<meta property="og:image:alt" content={t.aria.heroProduct} />
+		<meta property="og:locale" content={ogLocaleMap[locale]} />
+		{locales.filter((item) => item !== locale).map((item) => <meta property="og:locale:alternate" content={ogLocaleMap[item]} />)}
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={t.meta.title} />
+		<meta name="twitter:description" content={t.meta.description} />
+		<meta name="twitter:image" content={socialImageUrl} />
+		<script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+		<link rel="icon" href="/logo-light.png" type="image/png" media="(prefers-color-scheme: light)" />
+		<link rel="icon" href="/logo-dark.png" type="image/png" media="(prefers-color-scheme: dark)" />
+		<script is:inline src="/qishu-preferences.js"></script>
+		<script is:inline define:vars={{ locale, localePathMap }}>
+			(() => {
+				const aliases = { zh: 'zh-hans', cn: 'zh-hans', 'zh-cn': 'zh-hans', 'zh-hans': 'zh-hans', tw: 'zh-hant', 'zh-tw': 'zh-hant', 'zh-hant': 'zh-hant', en: 'en', ko: 'ko', kr: 'ko', ja: 'ja', jp: 'ja' };
+				const url = new URL(window.location.href);
+				const raw = url.searchParams.get('hl');
+				const target = raw ? aliases[raw.toLowerCase()] : null;
+				const targetPath = target ? localePathMap[target] : null;
+				if (target && targetPath) {
+					window.location.replace(targetPath + window.location.hash);
+				}
+			})();
+		</script>
+	</head>
+	<body>
+		<canvas class="gravity-grid" aria-hidden="true"></canvas>
+		<div class="site">
+			<header class="nav" aria-label={t.aria.mainNav}>
+				<div class="nav-inner">
+					<a class="brand" href="#top" aria-label={t.aria.brand}>
+						<img class="brand-logo brand-logo-light" src="/logo-light.png" alt="启枢科技" width="44" height="44" />
+						<img class="brand-logo brand-logo-dark" src="/logo-dark.png" alt="启枢科技" width="44" height="44" />
+					</a>
+					<nav class="nav-links" aria-label={t.aria.sections}>
+						{t.nav.map(([label, href]) => <a href={href}>{label}</a>)}
+					</nav>
+					<div class="select-switch theme-switch" data-theme-switch>
+						<button class="select-trigger theme-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label={t.aria.theme}><span data-theme-label>{t.theme.system}</span></button>
+						<div class="select-menu theme-menu" role="listbox" aria-label={t.aria.theme}>
+							<button class="select-option theme-option active" type="button" role="option" aria-selected="true" data-theme-option="system"><span data-theme-option-label="system">{t.theme.system}</span></button>
+							<button class="select-option theme-option" type="button" role="option" aria-selected="false" data-theme-option="light"><span data-theme-option-label="light">{t.theme.light}</span></button>
+							<button class="select-option theme-option" type="button" role="option" aria-selected="false" data-theme-option="dark"><span data-theme-option-label="dark">{t.theme.dark}</span></button>
+						</div>
+					</div>
+					<div class="select-switch language-switch" data-language-switch>
+						<button class="select-trigger language-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label={t.aria.language}><span data-lang-label>{localeLabels[locale]}</span></button>
+						<div class="select-menu language-menu" role="listbox" aria-label={t.aria.language}>
+							{languageOptions.map((option) => (
+								<a class:list={['select-option', 'language-option', { active: option.active }]} role="option" aria-selected={String(option.active)} href={option.href} data-lang={option.locale}>{option.label}</a>
+							))}
+						</div>
+					</div>
+					<a class="pixel-btn nav-cta" href="#contact">{t.header.cta}</a>
+				</div>
+			</header>
+
+			<main id="top">
+				<section class="hero" aria-labelledby="hero-title">
+					<div class="hero-text reveal">
+						<div class="eyebrow">{t.hero.eyebrow}</div>
+						<h1 id="hero-title">{t.hero.title}</h1>
+						<p class="hero-copy">{t.hero.copy}</p>
+						<div class="hero-actions">
+							<a class="pixel-btn" href="#product">{t.hero.primary}</a>
+							<a class="pixel-btn alt" href="#contact">{t.hero.secondary}</a>
+							<span class="hero-note">{t.hero.note}</span>
+						</div>
+					</div>
+
+					<div class="terminal reveal" aria-label={t.aria.terminal}>
+						<span class="corner" aria-hidden="true"></span>
+						<div class="terminal-top">
+							<span>{t.hero.console}</span>
+							<span class="lights" aria-hidden="true"><span></span><span></span><span></span></span>
+						</div>
+						<div class="dashboard">
+							<div class="status-grid">
+								{t.hero.stats.map(([label, value]) => <div class="stat"><strong>{label}</strong><span>{value}</span></div>)}
+							</div>
+							<div class="signal" id="hero-signal" aria-label={t.aria.signal}>
+								{t.hero.signals.map(([label, value, width]) => <div class="signal-row"><span>{label}</span><div class="bar"><span style={`--w: ${width}`}></span></div><b>{value}</b></div>)}
+							</div>
+							<div class="hero-product" aria-label={t.aria.heroProduct}>
+								<span class="product-corner tl" aria-hidden="true"></span>
+								<span class="product-corner tr" aria-hidden="true"></span>
+								<span class="product-corner br" aria-hidden="true"></span>
+								<span class="product-corner bl" aria-hidden="true"></span>
+								<div class="product-visual" aria-hidden="true">
+									<div class="desktop"><span></span><b></b></div>
+									<div class="board"><span></span><span></span><span></span></div>
+									<div class="printer"><span class="printer-slot"></span><span class="paper-roll"></span><span class="print-line"></span></div>
+									<div class="phone"><span></span><b></b></div>
+									<div class="link l1"></div><div class="link l2"></div><div class="link l3"></div>
+								</div>
+								<img
+									class="hero-product-image"
+									src="/hero/qishu-printer-ecosystem-dark.webp"
+									data-dark-src="/hero/qishu-printer-ecosystem-dark.webp"
+									data-light-src="/hero/qishu-printer-ecosystem-light.webp"
+									alt=""
+									decoding="async"
+									fetchpriority="high"
+									onload="this.dataset.loaded='true';(function(img){if(img.dataset.themeSwitcherReady)return;img.dataset.themeSwitcherReady='true';var apply=function(){var isLight=document.documentElement.getAttribute('data-theme')==='light';var next=img.getAttribute(isLight?'data-light-src':'data-dark-src');if(next&&img.getAttribute('src')!==next){delete img.dataset.loaded;img.setAttribute('src',next);}};apply();new MutationObserver(apply).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});})(this)"
+								/>
+								<div class="product-legend">{t.hero.productLegend}</div>
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<div class="trust-strip" id="trust" aria-label={t.aria.mainNav}>
+					{t.trust.map(([title, copy]) => <div class="trust-item reveal"><strong>{title}</strong><span>{copy}</span></div>)}
+				</div>
+
+				<section id="features" aria-labelledby="features-title">
+					<div class="section-head reveal">
+						<h2 id="features-title">{t.features.title}</h2>
+						<p>{t.features.copy}</p>
+					</div>
+					<div class="cards">
+						{t.features.cards.map((card) => <article class="card reveal"><div class:list={['icon', card.icon]} aria-hidden="true"></div><h3>{card.title}</h3><p>{card.copy}</p><ul>{card.items.map((item) => <li>{item}</li>)}</ul></article>)}
+					</div>
+				</section>
+
+				<section class="product-rail" id="gallery" aria-labelledby="gallery-title">
+					<div class="section-head reveal">
+						<h2 id="gallery-title">{t.gallery.title}</h2>
+						<p id="gallery-copy">{t.gallery.copy}</p>
+					</div>
+					<div class="rail-shell reveal" aria-label={t.aria.gallery}>
+						<div class="rail-viewport" data-product-rail tabindex="0">
+							<div class="rail-track" data-product-track>
+								{products.map((product) => <article class="product-card" tabindex="0"><div class="product-media"><div class:list={['product-shot', product.shot]} aria-hidden="true"><span></span><span></span><span></span></div><img class="product-image" src={product.image} alt={product.alt} loading="lazy" onload="this.dataset.loaded='true'" /><span class="product-tag">{product.tag}</span></div><div class="product-caption"><h3>{product.title}</h3><p>{product.copy}</p></div></article>)}
+							</div>
+						</div>
+					</div>
+					<p class="rail-hint">{t.gallery.hint}</p>
+				</section>
+
+				<section id="workflow" aria-labelledby="workflow-title">
+					<div class="section-head reveal"><h2 id="workflow-title">{t.workflow.title}</h2><p>{t.workflow.copy}</p></div>
+					<div class="steps reveal">
+						{t.workflow.steps.map(([code, title, copy]) => <article class="step"><b>{code}</b><h3>{title}</h3><p>{copy}</p></article>)}
+					</div>
+				</section>
+
+				<section id="product" aria-labelledby="product-title">
+					<div class="section-head reveal"><h2 id="product-title">{t.product.title}</h2><p>{t.product.copy}</p></div>
+					<div class="product">
+						<div class="control-panel reveal">
+							<div class="eyebrow">{t.product.eyebrow}</div>
+							<h3>{t.product.selectTitle}</h3>
+							<div class="tabs" role="tablist" aria-label={t.aria.moduleTabs}>
+								{moduleEntries.map((entry, index) => <button class="tab" type="button" role="tab" aria-selected={String(index === 0)} data-module={entry.key}>{entry.label}</button>)}
+							</div>
+							<p class="panel-copy" id="module-copy">{defaultModule.module.copy}</p>
+							<div class="handoff-flow" id="module-flow" aria-label={t.aria.moduleFlow}>
+								{defaultModule.module.flow.map(([label, value]) => <div class="flow-item"><span>{label}</span><strong>{value}</strong></div>)}
+							</div>
+						</div>
+						<div class="preview-panel reveal">
+							<div class="screen" aria-label={t.aria.modulePreview}>
+								<div class="screen-head"><span id="screen-label">{defaultModule.module.label}</span><span>{t.product.online}</span></div>
+								<div class="mini-grid" id="module-grid">
+									{defaultModule.module.grid.map(([title, copy]) => <div class="mini"><strong>{title}</strong><span>{copy}</span></div>)}
+								</div>
+								<div class="screen-foot"><span>{t.product.foot}</span><span id="screen-status">{defaultModule.module.status}</span></div>
+							</div>
+						</div>
+					</div>
+				</section>
+
+				<section aria-labelledby="proof-title">
+					<div class="section-head reveal"><h2 id="proof-title">{t.proof.title}</h2><p>{t.proof.copy}</p></div>
+					<div class="proof">
+						<blockquote class="quote reveal"><p>{t.proof.quote}</p><cite>{t.proof.cite}</cite></blockquote>
+						<div class="use-cases">
+							{t.proof.cases.map(([title, copy]) => <article class="case reveal"><h3>{title}</h3><p>{copy}</p></article>)}
+						</div>
+					</div>
+				</section>
+
+				<section aria-labelledby="journey-title">
+					<div class="section-head reveal"><h2 id="journey-title">{t.journey.title}</h2><p>{t.journey.copy}</p></div>
+					<div class="journey">
+						{t.journey.cards.map(([code, title, copy]) => <article class="journey-card reveal"><b>{code}</b><h3>{title}</h3><p>{copy}</p></article>)}
+					</div>
+				</section>
+
+				<section id="pricing" aria-labelledby="pricing-title">
+					<div class="section-head reveal"><h2 id="pricing-title">{t.pricing.title}</h2><p>{t.pricing.copy}</p></div>
+					<div class="pricing reveal">
+						<div><div class="eyebrow">{t.pricing.eyebrow}</div><h3>{t.pricing.selectTitle}</h3><div class="switch" aria-label={t.aria.planSwitch}>{planEntries.map(([key, plan], index) => <button type="button" class:list={{ active: index === 0 }} data-plan={key}>{plan[0]}</button>)}</div></div>
+						<article class="plan" id="plan-card"><div class="price" id="plan-price">{defaultPlan[1]}</div><p id="plan-desc">{defaultPlan[2]}</p><ul id="plan-list">{defaultPlan[3].map((item) => <li>{item}</li>)}</ul><a class="pixel-btn" href="#contact">{t.pricing.consult}</a></article>
+					</div>
+				</section>
+
+				<section aria-labelledby="faq-title">
+					<div class="section-head reveal"><h2 id="faq-title">{t.faq.title}</h2><p>{t.faq.copy}</p></div>
+					<div class="faq reveal">
+						{t.faq.items.map(([question, answer], index) => <div class:list={['faq-item', { open: index === 0 }]}><button type="button" aria-expanded={String(index === 0)}><span>{question}</span><span>{index === 0 ? '-' : '+'}</span></button><div class="faq-panel">{answer}</div></div>)}
+					</div>
+				</section>
+
+				<section id="contact" aria-labelledby="contact-title">
+					<div class="contact">
+						<div class="reveal"><div class="eyebrow">{t.contact.eyebrow}</div><h2 id="contact-title">{t.contact.title}</h2><p class="hero-copy">{t.contact.copy}</p><div class="copy-line"><span>{t.contact.emailIntro}</span><button class="copy-email" type="button" data-copy={contactEmail}>{t.contact.copyEmail}</button></div></div>
+						<form class="contact-form reveal" novalidate>
+							<label>{t.contact.name}<input name="name" autocomplete="name" placeholder={t.contact.namePlaceholder} required /></label>
+							<label>{t.contact.email}<input name="email" type="email" autocomplete="email" placeholder={t.contact.emailPlaceholder} required /></label>
+							<div class="choice-field" role="radiogroup" aria-label={t.aria.needType}><span>{t.contact.need}</span><div class="choice-grid">{t.contact.needs.map(([value, label], index) => <label class="choice"><input type="radio" name="need" value={value} checked={index === 0} />{label}</label>)}</div></div>
+							<label>{t.contact.message}<textarea name="message" placeholder={t.contact.messagePlaceholder} required></textarea></label>
+							<button class="pixel-btn" type="submit">{t.contact.submit}</button>
+							<div class="form-msg" role="status" aria-live="polite"></div>
+						</form>
+					</div>
+				</section>
+			</main>
+
+			<footer class="footer"><div class="footer-inner"><span>© <span data-current-year>2026</span> {t.footer.company}</span><span>{t.footer.scope}</span></div></footer>
+		</div>
+
+		<script is:inline define:vars={{ themeCopy: t.theme, moduleData, planData, contactCopy: t.contact, contactEmail }}>
+			const themeSwitch = document.querySelector('[data-theme-switch]');
+			const themeTrigger = document.querySelector('.theme-trigger');
+			const themeLabel = document.querySelector('[data-theme-label]');
+			const themeOptions = Array.from(document.querySelectorAll('.theme-option'));
+			const themeOptionLabels = Array.from(document.querySelectorAll('[data-theme-option-label]'));
+			const languageSwitch = document.querySelector('[data-language-switch]');
+			const languageTrigger = document.querySelector('.language-trigger');
+			const currentYear = document.querySelector('[data-current-year]');
+			const themeModes = ['system', 'light', 'dark'];
+			const systemThemeQuery = window.matchMedia('(prefers-color-scheme: light)');
+
+			if (currentYear) currentYear.textContent = String(new Date().getFullYear());
+
+			function themeText(mode) {
+				return mode === 'light' ? themeCopy.light : mode === 'dark' ? themeCopy.dark : themeCopy.system;
+			}
+
+			function resolveTheme(mode) {
+				if (mode === 'system') return systemThemeQuery.matches ? 'light' : 'dark';
+				return mode === 'light' ? 'light' : 'dark';
+			}
+
+			function setTheme(mode, persist = true) {
+				const themeMode = themeModes.includes(mode) ? mode : 'system';
+				const light = resolveTheme(themeMode) === 'light';
+				document.documentElement.dataset.theme = light ? 'light' : 'dark';
+				document.documentElement.dataset.themeMode = themeMode;
+				themeTrigger?.setAttribute('aria-label', themeCopy.current.replace('{{theme}}', themeText(themeMode)));
+				if (themeLabel) themeLabel.textContent = themeText(themeMode);
+				themeOptionLabels.forEach((label) => { label.textContent = themeText(label.dataset.themeOptionLabel); });
+				themeOptions.forEach((option) => {
+					const selected = option.dataset.themeOption === themeMode;
+					option.classList.toggle('active', selected);
+					option.setAttribute('aria-selected', String(selected));
+				});
+				if (persist) localStorage.setItem('qishu-theme', themeMode);
+			}
+
+			function setSwitchOpen(target, open) {
+				target?.classList.toggle('open', open);
+				target?.querySelector('.select-trigger')?.setAttribute('aria-expanded', String(open));
+			}
+
+			function renderModule(key) {
+				const data = moduleData[key] || moduleData.hardware;
+				document.querySelectorAll('.tab').forEach((tab) => tab.setAttribute('aria-selected', String(tab.dataset.module === key)));
+				document.getElementById('module-copy').textContent = data.copy;
+				document.getElementById('screen-label').textContent = data.label;
+				document.getElementById('screen-status').textContent = data.status;
+				document.getElementById('module-flow').innerHTML = data.flow.map(([label, text]) => `<div class="flow-item"><span>${label}</span><strong>${text}</strong></div>`).join('');
+				document.getElementById('module-grid').innerHTML = data.grid.map(([title, text]) => `<div class="mini"><strong>${title}</strong><span>${text}</span></div>`).join('');
+			}
+
+			function renderPlan(key) {
+				const data = planData[key] || planData.starter;
+				document.querySelectorAll('.switch button').forEach((button) => button.classList.toggle('active', button.dataset.plan === key));
+				document.getElementById('plan-price').textContent = data[1];
+				document.getElementById('plan-desc').textContent = data[2];
+				document.getElementById('plan-list').innerHTML = data[3].map((item) => `<li>${item}</li>`).join('');
+			}
+
+			setTheme(localStorage.getItem('qishu-theme') || 'system');
+			themeTrigger?.addEventListener('click', () => {
+				const open = !themeSwitch.classList.contains('open');
+				setSwitchOpen(themeSwitch, open);
+				setSwitchOpen(languageSwitch, false);
+			});
+			themeOptions.forEach((option) => option.addEventListener('click', () => {
+				setTheme(option.dataset.themeOption);
+				setSwitchOpen(themeSwitch, false);
+			}));
+			systemThemeQuery.addEventListener('change', () => {
+				if (document.documentElement.dataset.themeMode === 'system') setTheme('system', false);
+			});
+			languageTrigger?.addEventListener('click', () => {
+				const open = !languageSwitch.classList.contains('open');
+				setSwitchOpen(languageSwitch, open);
+				setSwitchOpen(themeSwitch, false);
+			});
+			document.addEventListener('click', (event) => {
+				if (themeSwitch && !themeSwitch.contains(event.target)) setSwitchOpen(themeSwitch, false);
+				if (languageSwitch && !languageSwitch.contains(event.target)) setSwitchOpen(languageSwitch, false);
+			});
+			document.querySelectorAll('.tab').forEach((button) => button.addEventListener('click', () => renderModule(button.dataset.module)));
+			document.querySelectorAll('.switch button').forEach((button) => button.addEventListener('click', () => renderPlan(button.dataset.plan)));
+			document.querySelectorAll('.faq-item button').forEach((button) => button.addEventListener('click', () => {
+				const item = button.closest('.faq-item');
+				item?.classList.toggle('open');
+				const open = item?.classList.contains('open');
+				button.setAttribute('aria-expanded', String(open));
+				button.querySelector('span:last-child').textContent = open ? '-' : '+';
+			}));
+			(() => {
+				const viewport = document.querySelector('[data-product-rail]');
+				const track = document.querySelector('[data-product-track]');
+				if (!viewport || !track) return;
+				const originals = Array.from(track.children);
+				originals.forEach((card) => {
+					const clone = card.cloneNode(true);
+					clone.setAttribute('tabindex', '-1');
+					clone.setAttribute('aria-hidden', 'true');
+					track.appendChild(clone);
+				});
+				let paused = false;
+				let dragging = false;
+				let startX = 0;
+				let startLeft = 0;
+				const step = () => {
+					if (!paused && !dragging && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+						viewport.scrollLeft += 0.38;
+						if (viewport.scrollLeft >= track.scrollWidth / 2) viewport.scrollLeft = 0;
+					}
+					requestAnimationFrame(step);
+				};
+				viewport.addEventListener('mouseenter', () => { paused = true; });
+				viewport.addEventListener('mouseleave', () => { paused = false; dragging = false; viewport.classList.remove('dragging'); });
+				viewport.addEventListener('focusin', () => { paused = true; });
+				viewport.addEventListener('focusout', () => { paused = false; });
+				viewport.addEventListener('pointerdown', (event) => {
+					dragging = true;
+					paused = true;
+					startX = event.clientX;
+					startLeft = viewport.scrollLeft;
+					viewport.classList.add('dragging');
+					viewport.setPointerCapture(event.pointerId);
+				});
+				viewport.addEventListener('pointermove', (event) => {
+					if (!dragging) return;
+					viewport.scrollLeft = startLeft - (event.clientX - startX);
+				});
+				viewport.addEventListener('pointerup', () => {
+					dragging = false;
+					paused = false;
+					viewport.classList.remove('dragging');
+				});
+				requestAnimationFrame(step);
+			})();
+			document.querySelector('.copy-email')?.addEventListener('click', async (event) => {
+				const button = event.currentTarget;
+				try { await navigator.clipboard.writeText(button.dataset.copy); button.textContent = contactCopy.copied; }
+				catch (_) { button.textContent = contactEmail; }
+				setTimeout(() => { button.textContent = contactCopy.copyEmail; }, 2200);
+			});
+			document.querySelector('.contact-form')?.addEventListener('submit', (event) => {
+				event.preventDefault();
+				const form = event.currentTarget;
+				const msg = form.querySelector('.form-msg');
+				const email = form.elements.email.value.trim();
+				if (!form.elements.name.value.trim() || !email || !form.elements.message.value.trim()) { msg.textContent = contactCopy.missing; return; }
+				if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.textContent = contactCopy.invalidEmail; return; }
+				msg.textContent = contactCopy.success;
+				form.reset();
+			});
+			const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+				if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); }
+			}), { threshold: 0.12 });
+			document.querySelectorAll('.reveal').forEach((el) => observer.observe(el));
+			(() => {
+				const canvas = document.querySelector('.gravity-grid');
+				if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+				const ctx = canvas.getContext('2d', { alpha: true });
+				let particles = [], width = 0, height = 0;
+				function resize() {
+					const dpr = Math.min(window.devicePixelRatio || 1, 2);
+					width = window.innerWidth; height = window.innerHeight;
+					canvas.width = width * dpr; canvas.height = height * dpr;
+					canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
+					ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+					const gap = width < 760 ? 86 : 72;
+					particles = Array.from({ length: (Math.ceil(width / gap) + 2) * (Math.ceil(height / gap) + 2) }, (_, i) => {
+						const col = i % (Math.ceil(width / gap) + 2);
+						const row = Math.floor(i / (Math.ceil(width / gap) + 2));
+						return { bx: (col - 1) * gap, by: (row - 1) * gap, x: 0, y: 0, p: (col * 0.73 + row * 1.17) * Math.PI };
+					});
+				}
+				function draw(time) {
+					const light = document.documentElement.dataset.theme === 'light';
+					ctx.clearRect(0, 0, width, height);
+					particles.forEach((p) => { p.x = p.bx + Math.cos(time * 0.0002 + p.p) * 4; p.y = p.by + Math.sin(time * 0.00018 + p.p) * 3; });
+					for (let i = 0; i < particles.length; i += 1) {
+						for (let j = i + 1; j < Math.min(i + 8, particles.length); j += 1) {
+							const a = particles[i], b = particles[j], d = Math.hypot(a.x - b.x, a.y - b.y);
+							if (d > 104) continue;
+							ctx.strokeStyle = light ? `rgba(0, 127, 194, ${0.034 * (1 - d / 104)})` : `rgba(94, 220, 244, ${0.07 * (1 - d / 104)})`;
+							ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+						}
+					}
+					particles.forEach((p, i) => { ctx.fillStyle = i % 7 ? 'rgba(94, 220, 244, 0.22)' : 'rgba(240, 166, 202, 0.32)'; ctx.beginPath(); ctx.arc(p.x, p.y, i % 7 ? 1.1 : 1.6, 0, Math.PI * 2); ctx.fill(); });
+					requestAnimationFrame(draw);
+				}
+				window.addEventListener('resize', resize, { passive: true });
+				resize(); requestAnimationFrame(draw);
+			})();
+		</script>
+	</body>
+</html>
+
+<style is:global>
+	:root {
+		--neon-pink: #f0a6ca;
+		--neon-cyan: #5edcf4;
+		--neon-yellow: #f4d03f;
+		--deep-navy: #0f1b3d;
+		--dark-void: #0a0e27;
+		--ink: #f7fbff;
+		--muted: rgba(247, 251, 255, 0.72);
+		--panel: rgba(15, 27, 61, 0.84);
+		--panel-strong: #111f49;
+		--line: rgba(94, 220, 244, 0.28);
+		--nav-bg: rgba(10, 14, 39, 0.82);
+		--grid-line: rgba(94, 220, 244, 0.07);
+		--grid-static: rgba(94, 220, 244, 0.035);
+		--hero-copy: rgba(247, 251, 255, 0.86);
+		--panel-soft: rgba(10, 14, 39, 0.66);
+		--panel-field: rgba(10, 14, 39, 0.72);
+		--paper: #ecf3f8;
+		--paper-ink: #0f1b3d;
+		--paper-line: rgba(15, 27, 61, 0.62);
+		--bar-track: rgba(15, 27, 61, 0.14);
+		--scanline: rgba(94, 220, 244, 0.045);
+		--vignette: rgba(10, 14, 39, 0.48);
+		--success: #6ef2b5;
+		--font-display: "Tektur", "Orbitron", "Rajdhani", system-ui, sans-serif;
+		--font-body: "Chakra Petch", "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+		--font-mono: "Space Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+		--max: 1180px;
+	}
+	html[data-theme="light"] {
+		--neon-pink: #f12ca6;
+		--neon-cyan: #00bdf2;
+		--neon-yellow: #ffcf24;
+		--deep-navy: #111d43;
+		--dark-void: #f3f7ff;
+		--ink: #05112d;
+		--muted: rgba(5, 17, 45, 0.76);
+		--panel: rgba(255, 255, 255, 0.9);
+		--panel-strong: #ffffff;
+		--line: rgba(0, 189, 242, 0.42);
+		--nav-bg: rgba(247, 251, 255, 0.9);
+		--grid-line: rgba(0, 189, 242, 0.12);
+		--grid-static: rgba(0, 127, 194, 0.04);
+		--hero-copy: rgba(5, 17, 45, 0.86);
+		--panel-soft: rgba(255, 255, 255, 0.76);
+		--panel-field: rgba(255, 255, 255, 0.92);
+		--paper: #fbfdff;
+		--paper-ink: #071638;
+		--paper-line: rgba(0, 111, 165, 0.38);
+		--bar-track: rgba(0, 111, 165, 0.16);
+		--scanline: rgba(0, 189, 242, 0.035);
+		--vignette: rgba(233, 241, 255, 0.34);
+	}
+	* { box-sizing: border-box; }
+	html { scroll-behavior: smooth; }
+	body { margin: 0; font-family: var(--font-body); color: var(--ink); background: radial-gradient(circle at 20% 8%, rgba(240, 166, 202, 0.13), transparent 32%), radial-gradient(circle at 82% 18%, rgba(94, 220, 244, 0.16), transparent 30%), var(--dark-void); min-height: 100vh; overflow-x: hidden; }
+	body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 20; background: repeating-linear-gradient(0deg, transparent 0 3px, var(--scanline) 3px 4px), radial-gradient(ellipse at center, transparent 52%, var(--vignette)); mix-blend-mode: screen; }
+	html[data-theme="light"] body::before { mix-blend-mode: multiply; }
+	a { color: inherit; text-decoration: none; }
+	button, input, textarea { font: inherit; }
+	button { cursor: pointer; }
+	.site { position: relative; z-index: 1; background-image: linear-gradient(var(--grid-static) 1px, transparent 1px), linear-gradient(90deg, var(--grid-static) 1px, transparent 1px); background-size: 40px 40px; }
+	.gravity-grid { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 0; opacity: 0.78; mix-blend-mode: screen; }
+	.nav { position: sticky; top: 0; z-index: 15; backdrop-filter: blur(16px); background: var(--nav-bg); border-bottom: 2px solid rgba(94, 220, 244, 0.18); }
+	.nav-inner { max-width: var(--max); margin: 0 auto; padding: 18px 22px; display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 16px; align-items: center; }
+	.brand { display: inline-flex; align-items: center; }
+	.brand-logo { display: block; width: 46px; height: 46px; object-fit: contain; filter: drop-shadow(5px 5px 0 rgba(240, 166, 202, 0.36)); }
+	.brand-logo-dark { display: none; }
+	html[data-theme="dark"] .brand-logo-light { display: none; }
+	html[data-theme="dark"] .brand-logo-dark { display: block; }
+	.nav-links { display: flex; justify-content: center; gap: clamp(14px, 3vw, 34px); color: var(--muted); font-size: 0.92rem; }
+	.nav-links a { position: relative; }
+	.nav-links a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 2px; background: var(--neon-cyan); transform: scaleX(0); transform-origin: left; transition: transform 160ms ease; }
+	.nav-links a:hover::after { transform: scaleX(1); }
+	.pixel-btn { border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 12px 22px; color: var(--deep-navy); background: var(--neon-cyan); font-family: var(--font-display); font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; box-shadow: 4px 0 0 var(--deep-navy), 0 4px 0 var(--deep-navy), 4px 4px 0 var(--deep-navy), 8px 4px 0 var(--neon-yellow), 4px 8px 0 var(--neon-yellow), 8px 8px 0 var(--neon-yellow); transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease; }
+	.pixel-btn:hover, .pixel-btn:focus-visible { transform: translate(2px, 2px); filter: saturate(1.2); box-shadow: 2px 0 0 var(--deep-navy), 0 2px 0 var(--deep-navy), 2px 2px 0 var(--deep-navy), 4px 2px 0 var(--neon-yellow), 2px 4px 0 var(--neon-yellow), 4px 4px 0 var(--neon-yellow); }
+	.pixel-btn.alt { background: transparent; color: var(--neon-cyan); border: 2px solid var(--neon-cyan); box-shadow: none; }
+	.select-trigger { width: 112px; min-height: 44px; display: inline-flex; align-items: center; justify-content: space-between; gap: 9px; padding: 0 12px; border: 2px solid var(--line); background: var(--panel-field); color: var(--ink); font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; box-shadow: 4px 4px 0 rgba(94, 220, 244, 0.12); transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease, background 120ms ease; }
+	.select-trigger:hover, .select-trigger:focus-visible, .select-switch.open .select-trigger { border-color: var(--neon-cyan); box-shadow: 4px 4px 0 rgba(240, 166, 202, 0.22); outline: none; }
+	.select-trigger:active { transform: translate(1px, 1px); box-shadow: 2px 2px 0 rgba(240, 166, 202, 0.22); }
+	.select-trigger::before { content: ""; width: 10px; height: 10px; flex: 0 0 auto; background: var(--neon-yellow); box-shadow: 5px 0 0 var(--neon-cyan); }
+	.select-switch { position: relative; display: inline-flex; align-items: center; }
+	.select-menu { position: absolute; top: calc(100% + 10px); right: 0; min-width: 172px; padding: 8px; display: grid; gap: 6px; background: var(--panel-strong); border: 2px solid var(--neon-cyan); box-shadow: 8px 8px 0 rgba(240, 166, 202, 0.24); opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity 140ms ease, transform 140ms ease; z-index: 30; }
+	.theme-menu { min-width: 132px; }
+	.select-switch.open .select-menu { opacity: 1; transform: translateY(0); pointer-events: auto; }
+	.select-option { min-height: 38px; padding: 8px 10px; border: 1px solid transparent; background: transparent; color: var(--ink); text-align: left; font-family: var(--font-mono); font-size: 0.78rem; }
+	.select-option:hover, .select-option:focus-visible { color: var(--deep-navy); background: var(--neon-cyan); outline: none; }
+	.select-option.active { border-color: var(--neon-yellow); color: var(--neon-yellow); background: color-mix(in srgb, var(--neon-yellow) 12%, transparent); }
+	.hero { min-height: calc(100vh - 84px); max-width: var(--max); margin: 0 auto; padding: clamp(56px, 8vw, 110px) 22px 70px; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr); gap: clamp(34px, 6vw, 78px); align-items: center; }
+	.eyebrow { display: inline-flex; width: fit-content; align-items: center; gap: 10px; padding: 7px 12px; margin-bottom: 24px; background: var(--deep-navy); color: var(--neon-yellow); border: 2px solid rgba(244, 208, 63, 0.56); font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.18em; text-transform: uppercase; }
+	.eyebrow::before { content: ""; width: 8px; height: 8px; background: var(--success); box-shadow: 14px 0 0 var(--neon-pink); }
+	h1, h2, h3 { font-family: var(--font-display); line-height: 1.02; margin: 0; }
+	h1 { max-width: 760px; font-size: clamp(2.75rem, 5.8vw, 5.35rem); font-weight: 900; letter-spacing: 0.02em; color: var(--neon-cyan); text-shadow: 3px 3px 0 var(--neon-yellow), 6px 6px 0 var(--deep-navy); overflow-wrap: anywhere; text-wrap: balance; }
+	html[lang="en"] h1 { max-width: 720px; font-size: clamp(2.55rem, 4.4vw, 4.25rem); line-height: 1.08; overflow-wrap: normal; word-break: normal; hyphens: none; }
+	html[lang="ko"] h1, html[lang="ja"] h1 { max-width: 760px; font-size: clamp(2.35rem, 4vw, 3.75rem); line-height: 1.12; overflow-wrap: normal; word-break: keep-all; hyphens: none; }
+	.hero-copy { max-width: 650px; margin: 30px 0 0; color: var(--hero-copy); font-size: clamp(1.04rem, 1.7vw, 1.25rem); line-height: 1.85; }
+	.hero-actions { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 38px; align-items: center; }
+	.hero-note { color: var(--muted); font-family: var(--font-mono); font-size: 0.82rem; }
+	.terminal { position: relative; min-width: 0; padding: 26px; background: var(--panel); border: 2px solid var(--line); box-shadow: 16px 16px 0 rgba(94, 220, 244, 0.12); overflow: hidden; }
+	.terminal::before, .terminal::after, .corner::before, .corner::after { content: ""; position: absolute; width: 22px; height: 22px; border-color: var(--neon-cyan); border-style: solid; pointer-events: none; }
+	.terminal::before { top: -8px; left: -8px; border-width: 4px 0 0 4px; }
+	.terminal::after { right: -8px; bottom: -8px; border-width: 0 4px 4px 0; }
+	.corner::before { top: -8px; right: -8px; border-width: 4px 4px 0 0; border-color: var(--neon-pink); }
+	.corner::after { left: -8px; bottom: -8px; border-width: 0 0 4px 4px; border-color: var(--neon-yellow); }
+	.terminal-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid rgba(94, 220, 244, 0.24); font-family: var(--font-mono); color: var(--neon-cyan); font-size: 0.82rem; }
+	.lights { display: inline-flex; gap: 8px; }
+	.lights span { width: 12px; height: 12px; display: block; background: var(--neon-pink); }
+	.lights span:nth-child(2) { background: var(--neon-yellow); }
+	.lights span:nth-child(3) { background: var(--success); }
+	.dashboard { margin-top: 26px; display: grid; gap: 18px; }
+	.status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+	.stat { min-width: 0; padding: 18px 14px; background: var(--panel-field); border: 1px solid rgba(94, 220, 244, 0.22); }
+	.stat strong { display: block; color: var(--neon-yellow); font-family: var(--font-display); font-size: 1.45rem; line-height: 1; }
+	.stat span { display: block; margin-top: 8px; color: var(--muted); font-size: 0.78rem; }
+	.signal { display: grid; gap: 10px; padding: 18px; background: var(--paper); color: var(--paper-ink); border: 2px solid var(--paper-line); }
+	#hero-signal { background: linear-gradient(rgba(94, 220, 244, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(94, 220, 244, 0.08) 1px, transparent 1px), rgba(7, 13, 36, 0.94); color: rgba(246, 252, 255, 0.94); border-color: rgba(94, 220, 244, 0.42); background-size: 18px 18px; }
+	html[data-theme="light"] #hero-signal { background: var(--paper); color: var(--paper-ink); border-color: var(--paper-line); }
+	.signal-row { display: grid; grid-template-columns: minmax(74px, 0.95fr) minmax(64px, 1.35fr) minmax(38px, auto); gap: 12px; align-items: center; font-family: var(--font-mono); font-size: 0.78rem; }
+	.bar { height: 12px; background: var(--bar-track); position: relative; }
+	.bar span { display: block; height: 100%; width: var(--w); background: var(--neon-cyan); box-shadow: 4px 0 0 var(--neon-pink); }
+	.hero-product { position: relative; min-width: 0; aspect-ratio: 16 / 10.4; min-height: 292px; padding: 18px; overflow: hidden; background: linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px), var(--panel-soft); background-size: 24px 24px; border: 2px solid rgba(240, 166, 202, 0.28); }
+	html[data-theme="light"] .hero-product { background: linear-gradient(rgba(94, 220, 244, 0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(94, 220, 244, 0.12) 1px, transparent 1px), rgba(255, 255, 255, 0.64); background-size: 24px 24px; border-color: rgba(94, 220, 244, 0.42); box-shadow: 18px 18px 0 rgba(94, 220, 244, 0.12); }
+	.hero-product::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0; background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 44%, rgba(255, 255, 255, 0.26)); }
+	html[data-theme="light"] .hero-product::before { opacity: 1; }
+	.hero-product-image { position: absolute; inset: 18px; z-index: 5; width: calc(100% - 36px); height: calc(100% - 36px); display: block; object-fit: cover; object-position: center; opacity: 0; transform: none; transform-origin: center center; filter: drop-shadow(0 18px 30px rgba(94, 220, 244, 0.18)); transition: opacity 260ms ease; pointer-events: none; }
+	.hero-product-image[data-loaded="true"] { opacity: 1; }
+	.hero-product:has(.hero-product-image[data-loaded="true"]) .product-visual { opacity: 0; }
+	html[data-theme="light"] .hero-product-image { filter: none; mix-blend-mode: normal; }
+	.product-legend { position: absolute; z-index: 6; left: 18px; right: 18px; bottom: 16px; padding: 9px 12px; color: var(--neon-yellow); background: rgba(10, 14, 39, 0.78); border: 1px solid rgba(244, 208, 63, 0.36); font-size: 0.82rem; }
+	.product-corner { position: absolute; width: 28px; height: 28px; border-style: solid; pointer-events: none; z-index: 7; }
+	.product-corner.tl { top: 10px; left: 10px; border-width: 4px 0 0 4px; border-color: var(--neon-cyan); }
+	.product-corner.tr { top: 10px; right: 10px; border-width: 4px 4px 0 0; border-color: var(--neon-pink); }
+	.product-corner.br { right: 10px; bottom: 10px; border-width: 0 4px 4px 0; border-color: var(--neon-cyan); }
+	.product-corner.bl { left: 10px; bottom: 10px; border-width: 0 0 4px 4px; border-color: var(--neon-yellow); }
+	.product-visual { position: absolute; inset: 18px; z-index: 2; transform: scale(1.02); transition: opacity 220ms ease; }
+	.printer, .board, .phone, .desktop { position: absolute; z-index: 2; border: 3px solid var(--neon-cyan); background: rgba(7, 13, 36, 0.9); box-shadow: 9px 9px 0 rgba(240, 166, 202, 0.22); }
+	html[data-theme="light"] .printer, html[data-theme="light"] .board, html[data-theme="light"] .phone, html[data-theme="light"] .desktop { background: rgba(255, 255, 255, 0.88); }
+	.printer { left: 7%; top: 38%; width: 46%; height: 31%; }
+	.printer::before { content: ""; position: absolute; left: 13%; right: 13%; top: -42%; height: 58%; border: 3px solid var(--neon-yellow); background: var(--paper); }
+	.printer-slot { position: absolute; left: 12%; right: 12%; top: 27%; height: 8px; background: var(--neon-pink); }
+	.paper-roll { position: absolute; left: 14%; top: -54%; width: 48px; height: 48px; border: 8px solid var(--neon-cyan); background: var(--paper); }
+	.print-line { position: absolute; left: 20%; right: 18%; bottom: 22%; height: 10px; background: repeating-linear-gradient(90deg, var(--neon-yellow) 0 14px, transparent 14px 22px); }
+	.board { right: 11%; top: 6%; width: 33%; height: 28%; border-color: var(--neon-yellow); }
+	.board span { position: absolute; width: 16px; height: 16px; background: var(--neon-cyan); box-shadow: 22px 14px 0 var(--neon-pink), 48px -4px 0 var(--success), 76px 24px 0 var(--neon-yellow); left: 18%; top: 38%; }
+	.phone { right: 9%; top: 46%; width: 22%; height: 43%; border-color: var(--neon-pink); }
+	.phone span { position: absolute; inset: 12px 10px 28px; border: 2px solid var(--neon-cyan); background: linear-gradient(var(--neon-cyan), var(--neon-cyan)) 12px 18px / 54% 6px no-repeat, linear-gradient(var(--neon-yellow), var(--neon-yellow)) 12px 38px / 72% 6px no-repeat; }
+	.phone b { position: absolute; left: 50%; bottom: 10px; width: 22px; height: 6px; transform: translateX(-50%); background: var(--neon-yellow); }
+	.desktop { left: 18%; top: 8%; width: 34%; height: 25%; }
+	.desktop span { position: absolute; inset: 12px; border: 2px solid var(--neon-yellow); background: linear-gradient(90deg, var(--neon-pink) 0 34%, transparent 34% 42%, var(--neon-cyan) 42%); }
+	.desktop b { position: absolute; left: 42%; bottom: -18px; width: 18%; height: 18px; background: var(--neon-cyan); }
+	.link { position: absolute; z-index: 1; height: 3px; background: repeating-linear-gradient(90deg, var(--neon-cyan) 0 10px, transparent 10px 18px); opacity: 0.72; animation: pulse 2.8s ease-in-out infinite; }
+	.l1 { left: 44%; top: 34%; width: 30%; transform: rotate(-16deg); }
+	.l2 { left: 46%; top: 54%; width: 28%; transform: rotate(13deg); animation-delay: 0.4s; }
+	.l3 { left: 34%; top: 33%; width: 22%; transform: rotate(84deg); animation-delay: 0.8s; }
+	@keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+	.trust-strip { max-width: var(--max); margin: -22px auto 0; padding: 0 22px 22px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+	.trust-item, .card, .step, .control-panel, .preview-panel, .quote, .case, .journey-card, .pricing, .faq, .contact-form { background: var(--panel); border: 2px solid rgba(94, 220, 244, 0.22); }
+	.trust-item { padding: 18px; font-family: var(--font-mono); min-height: 116px; }
+	.trust-item strong { display: block; color: var(--neon-yellow); font-family: var(--font-display); font-size: 1.18rem; letter-spacing: 0.06em; }
+	.trust-item span { display: block; margin-top: 12px; color: var(--muted); font-size: 0.82rem; line-height: 1.55; }
+	section { max-width: var(--max); margin: 0 auto; padding: clamp(62px, 8vw, 104px) 22px; }
+	.section-head { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(260px, 0.7fr); gap: 34px; align-items: end; margin-bottom: 34px; }
+	.section-head h2 { color: var(--neon-cyan); font-size: clamp(2.1rem, 5vw, 4.8rem); text-shadow: 3px 3px 0 rgba(244, 208, 63, 0.36); }
+	.section-head p { color: var(--muted); font-size: 1.04rem; line-height: 1.8; margin: 0; }
+	.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+	.card, .step, .control-panel, .preview-panel, .quote, .case, .journey-card, .pricing, .contact-form { padding: 24px; }
+	.icon { width: 44px; height: 44px; background: var(--neon-cyan); box-shadow: 12px 12px 0 var(--neon-pink); margin-bottom: 20px; }
+	.icon.diamond { transform: rotate(45deg); background: var(--neon-yellow); }
+	.icon.ring { background: transparent; border: 8px solid var(--neon-cyan); box-shadow: 12px 12px 0 var(--neon-yellow); }
+	.card h3, .step h3, .case h3, .journey-card h3, .control-panel h3 { color: var(--neon-yellow); font-size: 1.45rem; }
+	.card p, .step p, .case p, .journey-card p, .panel-copy, .plan p { color: var(--muted); line-height: 1.7; }
+	.card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; color: var(--ink); font-size: 0.92rem; }
+	.card li::before { content: "▣"; margin-right: 8px; color: var(--neon-pink); }
+	.product-rail { max-width: none; padding-right: 0; overflow: hidden; }
+	.product-rail .section-head { max-width: var(--max); margin-inline: auto; padding-right: 22px; }
+	.rail-shell {
+		position: relative;
+		border-block: 2px solid rgba(94, 220, 244, 0.24);
+		background:
+			linear-gradient(90deg, rgba(94, 220, 244, 0.1), transparent 28%, transparent 72%, rgba(240, 166, 202, 0.1)),
+			var(--panel-soft);
+		padding: 20px 0;
+		overflow: hidden;
+	}
+	html[data-theme="light"] .rail-shell {
+		background:
+			linear-gradient(90deg, rgba(0, 189, 242, 0.08), transparent 30%, transparent 70%, rgba(241, 44, 166, 0.07)),
+			rgba(255, 255, 255, 0.72);
+	}
+	.rail-shell::before,
+	.rail-shell::after {
+		content: "";
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: min(120px, 12vw);
+		z-index: 2;
+		pointer-events: none;
+	}
+	.rail-shell::before { left: 0; background: linear-gradient(90deg, var(--dark-void), transparent); }
+	.rail-shell::after { right: 0; background: linear-gradient(270deg, var(--dark-void), transparent); }
+	html[data-theme="light"] .rail-shell::before { background: linear-gradient(90deg, rgba(243, 247, 255, 0.98), transparent); }
+	html[data-theme="light"] .rail-shell::after { background: linear-gradient(270deg, rgba(243, 247, 255, 0.98), transparent); }
+	.rail-viewport {
+		position: relative;
+		z-index: 1;
+		overflow-x: auto;
+		overflow-y: hidden;
+		scrollbar-width: none;
+		cursor: grab;
+		user-select: none;
+		-webkit-overflow-scrolling: touch;
+	}
+	.rail-viewport::-webkit-scrollbar { display: none; }
+	.rail-viewport.dragging { cursor: grabbing; }
+	.rail-track {
+		display: flex;
+		gap: 18px;
+		width: max-content;
+		padding: 4px max(22px, calc((100vw - var(--max)) / 2)) 4px max(22px, calc((100vw - var(--max)) / 2));
+	}
+	.product-card {
+		position: relative;
+		flex: 0 0 clamp(260px, 27vw, 360px);
+		display: grid;
+		gap: 12px;
+		padding: 12px;
+		color: var(--ink);
+		background: var(--panel);
+		border: 2px solid rgba(94, 220, 244, 0.28);
+		box-shadow: 10px 10px 0 rgba(94, 220, 244, 0.1);
+		overflow: hidden;
+	}
+	html[data-theme="light"] .product-card { background: rgba(255, 255, 255, 0.86); box-shadow: 10px 10px 0 rgba(0, 127, 194, 0.08); }
+	.product-card::before,
+	.product-card::after {
+		content: "";
+		position: absolute;
+		width: 18px;
+		height: 18px;
+		pointer-events: none;
+		z-index: 2;
+	}
+	.product-card::before { top: -2px; left: -2px; border-top: 4px solid var(--neon-cyan); border-left: 4px solid var(--neon-cyan); }
+	.product-card::after { right: -2px; bottom: -2px; border-right: 4px solid var(--neon-pink); border-bottom: 4px solid var(--neon-pink); }
+	.product-media {
+		position: relative;
+		aspect-ratio: 4 / 3;
+		overflow: hidden;
+		background:
+			linear-gradient(rgba(94, 220, 244, 0.08) 1px, transparent 1px),
+			linear-gradient(90deg, rgba(94, 220, 244, 0.08) 1px, transparent 1px),
+			var(--deep-navy);
+		background-size: 18px 18px;
+		border: 1px solid rgba(94, 220, 244, 0.24);
+	}
+	html[data-theme="light"] .product-media { background: #fff; border-color: rgba(0, 127, 194, 0.2); }
+	.product-media::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		background: repeating-linear-gradient(0deg, transparent 0 7px, rgba(94, 220, 244, 0.08) 7px 8px);
+		mix-blend-mode: screen;
+	}
+	.product-card:hover .product-shot,
+	.product-card:focus-within .product-shot { transform: scale(1.045); }
+	.product-image {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		width: 100%;
+		height: 100%;
+		display: block;
+		object-fit: cover;
+		opacity: 0;
+		transition: opacity 220ms ease, transform 260ms ease;
+		pointer-events: none;
+	}
+	.product-image[data-loaded="true"] { opacity: 1; }
+	.product-card:hover .product-image,
+	.product-card:focus-within .product-image { transform: scale(1.045); }
+	html[data-theme="dark"] .product-image {
+		filter: saturate(0.92) contrast(0.98) brightness(0.96);
+	}
+	.product-tag {
+		position: absolute;
+		top: 12px;
+		left: 12px;
+		z-index: 3;
+		padding: 5px 9px;
+		color: var(--deep-navy);
+		background: var(--neon-yellow);
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.product-caption { display: grid; gap: 6px; min-height: 84px; padding: 2px 2px 4px; }
+	.product-caption h3 { color: var(--neon-cyan); font-size: 1.08rem; line-height: 1.22; overflow-wrap: anywhere; }
+	.product-caption p { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.55; }
+	.rail-hint {
+		max-width: var(--max);
+		margin: 14px auto 0;
+		padding-inline: 22px;
+		color: var(--muted);
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.product-shot {
+		position: absolute;
+		inset: 16px;
+		transition: transform 260ms ease;
+	}
+	.product-shot span { position: absolute; display: block; }
+	.shot-ecosystem span:nth-child(1) { left: 8%; top: 32%; width: 48%; height: 38%; border: 5px solid var(--neon-cyan); box-shadow: 10px 10px 0 rgba(240, 166, 202, 0.22); }
+	.shot-ecosystem span:nth-child(2) { right: 5%; top: 12%; width: 42%; height: 34%; border: 5px solid var(--neon-yellow); }
+	.shot-ecosystem span:nth-child(3) { right: 17%; bottom: 7%; width: 28%; height: 38%; border: 5px solid var(--neon-pink); }
+	.shot-printer span:nth-child(1) { left: 12%; right: 12%; bottom: 20%; height: 36%; border: 5px solid var(--neon-cyan); }
+	.shot-printer span:nth-child(2) { left: 24%; top: 20%; width: 52%; height: 32%; border: 5px solid var(--neon-yellow); background: var(--paper); }
+	.shot-printer span:nth-child(3) { left: 28%; bottom: 31%; width: 44%; height: 9px; background: var(--neon-pink); box-shadow: 0 34px 0 var(--neon-yellow); }
+	.shot-pcba span:nth-child(1) { inset: 14% 10%; border: 5px solid var(--neon-yellow); }
+	.shot-pcba span:nth-child(2) { left: 24%; top: 34%; width: 22%; height: 22%; background: var(--neon-cyan); box-shadow: 58px -18px 0 var(--success), 92px 28px 0 var(--neon-pink); }
+	.shot-pcba span:nth-child(3) { left: 15%; right: 15%; bottom: 18%; height: 5px; background: repeating-linear-gradient(90deg, var(--neon-cyan) 0 12px, transparent 12px 20px); }
+	.shot-test span:nth-child(1) { left: 14%; top: 16%; width: 34%; height: 56%; border: 5px solid var(--neon-cyan); background: rgba(236, 243, 248, 0.9); }
+	.shot-test span:nth-child(2) { right: 12%; top: 26%; width: 42%; height: 18%; background: var(--neon-yellow); box-shadow: 0 36px 0 var(--neon-pink); }
+	.shot-test span:nth-child(3) { left: 18%; right: 18%; bottom: 12%; height: 4px; background: repeating-linear-gradient(90deg, var(--neon-cyan) 0 16px, transparent 16px 26px); }
+	.shot-app span:nth-child(1) { left: 32%; top: 10%; width: 34%; height: 76%; border: 5px solid var(--neon-pink); }
+	.shot-app span:nth-child(2) { left: 39%; top: 26%; width: 20%; height: 8px; background: var(--neon-cyan); box-shadow: 0 26px 0 var(--neon-yellow), 0 52px 0 var(--success); }
+	.shot-app span:nth-child(3) { left: 44%; bottom: 18%; width: 10%; height: 6px; background: var(--neon-yellow); }
+	.shot-desktop span:nth-child(1) { left: 10%; top: 20%; width: 58%; height: 42%; border: 5px solid var(--neon-cyan); }
+	.shot-desktop span:nth-child(2) { right: 9%; top: 30%; width: 36%; height: 35%; border: 5px solid var(--neon-yellow); }
+	.shot-desktop span:nth-child(3) { left: 18%; bottom: 18%; width: 62%; height: 8px; background: repeating-linear-gradient(90deg, var(--neon-pink) 0 18px, var(--neon-cyan) 18px 36px, var(--neon-yellow) 36px 54px); }
+	.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+	.step { min-height: 220px; }
+	.step b, .journey-card b { display: inline-block; margin-bottom: 28px; color: var(--neon-pink); font-family: var(--font-mono); letter-spacing: 0.12em; }
+	.product { display: grid; grid-template-columns: minmax(0, 0.75fr) minmax(0, 1fr); gap: 18px; }
+	.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 24px 0; }
+	.tab, .switch button { border: 2px solid var(--line); background: var(--panel-field); color: var(--ink); padding: 12px; font-family: var(--font-mono); }
+	.tab[aria-selected="true"], .switch button.active { background: var(--neon-cyan); color: var(--deep-navy); border-color: var(--neon-cyan); }
+	.handoff-flow { display: grid; gap: 10px; margin-top: 24px; }
+	.flow-item { position: relative; display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: center; min-height: 54px; padding: 11px 12px; border: 2px solid var(--line); background: var(--panel-field); }
+	.flow-item + .flow-item::before { content: ""; position: absolute; left: 33px; top: -12px; width: 2px; height: 10px; background: var(--neon-cyan); box-shadow: 0 0 0 1px rgba(94, 220, 244, 0.16); }
+	.flow-item span { color: var(--neon-yellow); font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 0.12em; text-transform: uppercase; }
+	.flow-item strong { color: var(--ink); font-size: 0.94rem; line-height: 1.45; }
+	.screen { display: grid; gap: 18px; min-height: 100%; padding: 22px; background: var(--paper); color: var(--paper-ink); border: 2px solid var(--paper-line); }
+	html[data-theme="dark"] .screen {
+		background:
+			linear-gradient(rgba(94, 220, 244, 0.08) 1px, transparent 1px),
+			linear-gradient(90deg, rgba(94, 220, 244, 0.08) 1px, transparent 1px),
+			rgba(7, 13, 36, 0.94);
+		background-size: 18px 18px;
+		color: rgba(246, 252, 255, 0.94);
+		border-color: rgba(94, 220, 244, 0.42);
+		box-shadow: inset 0 0 0 1px rgba(244, 208, 63, 0.12), 8px 8px 0 rgba(240, 166, 202, 0.12);
+	}
+	.screen-head, .screen-foot { display: flex; justify-content: space-between; gap: 16px; font-family: var(--font-mono); font-size: 0.78rem; color: var(--paper-ink); }
+	html[data-theme="dark"] .screen-head,
+	html[data-theme="dark"] .screen-foot { color: var(--neon-cyan); }
+	.mini-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+	.mini { padding: 16px; min-height: 130px; background: rgba(15, 27, 61, 0.08); border: 1px solid var(--paper-line); }
+	html[data-theme="dark"] .mini { background: rgba(10, 14, 39, 0.72); border-color: rgba(94, 220, 244, 0.24); }
+	.mini strong { display: block; font-family: var(--font-display); color: #005a8a; font-size: 1.1rem; }
+	html[data-theme="dark"] .mini strong { color: var(--neon-yellow); }
+	.mini span { display: block; margin-top: 10px; color: rgba(7, 22, 56, 0.72); line-height: 1.55; }
+	html[data-theme="dark"] .mini span { color: var(--muted); }
+	.proof { display: grid; grid-template-columns: 0.75fr 1fr; gap: 18px; }
+	.quote { margin: 0; }
+	.quote p { margin: 0; font-size: clamp(1.35rem, 3vw, 2.2rem); line-height: 1.25; color: var(--neon-yellow); }
+	.quote cite { display: block; margin-top: 24px; color: var(--muted); font-family: var(--font-mono); font-style: normal; }
+	.use-cases, .journey { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+	.pricing { display: grid; grid-template-columns: 0.8fr 1fr; gap: 24px; }
+	.switch { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+	.plan { padding: 0; border: 0; background: transparent; }
+	.price { color: var(--neon-yellow); font-family: var(--font-display); font-size: clamp(2.4rem, 5vw, 4.8rem); line-height: 1; }
+	.plan ul { margin: 20px 0 28px; padding-left: 20px; color: var(--ink); line-height: 1.8; }
+	.faq { display: grid; gap: 0; overflow: hidden; }
+	.faq-item + .faq-item { border-top: 1px solid var(--line); }
+	.faq-item button { width: 100%; display: flex; justify-content: space-between; gap: 20px; padding: 22px; border: 0; background: transparent; color: var(--ink); text-align: left; font-family: var(--font-display); font-size: 1.2rem; }
+	.faq-panel { display: none; padding: 0 22px 22px; color: var(--muted); line-height: 1.75; }
+	.faq-item.open .faq-panel { display: block; }
+	.contact { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(320px, 0.8fr); gap: 28px; align-items: start; }
+	.copy-line { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; align-items: center; color: var(--muted); }
+	.copy-email { border: 2px solid var(--neon-cyan); background: transparent; color: var(--neon-cyan); padding: 10px 12px; }
+	.contact-form { display: grid; gap: 18px; }
+	label, .choice-field { display: grid; gap: 8px; color: var(--neon-yellow); font-family: var(--font-mono); font-size: 0.82rem; }
+	input, textarea { width: 100%; border: 2px solid var(--line); background: var(--panel-field); color: var(--ink); padding: 13px 14px; outline: none; }
+	textarea { min-height: 136px; resize: vertical; }
+	input:focus, textarea:focus { border-color: var(--neon-cyan); }
+	.choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+	.choice { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); color: var(--ink); }
+	.choice input { width: auto; }
+	.form-msg { min-height: 24px; color: var(--neon-yellow); font-family: var(--font-mono); font-size: 0.86rem; }
+	.footer { border-top: 2px solid rgba(94, 220, 244, 0.18); }
+	.footer-inner { max-width: var(--max); margin: 0 auto; padding: 28px 22px; display: flex; justify-content: space-between; gap: 18px; color: var(--muted); font-size: 0.86rem; }
+	.reveal { opacity: 0; transform: translateY(18px); transition: opacity 520ms ease, transform 520ms ease; }
+	.reveal.visible { opacity: 1; transform: translateY(0); }
+	@media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto !important; transition: none !important; } .reveal { opacity: 1; transform: none; } }
+	@media (max-width: 1100px) { .nav-inner { grid-template-columns: auto 1fr auto auto auto; } .nav-cta { min-height: 42px; padding: 10px 16px; font-size: 0.78rem; } .hero, .product, .proof, .pricing, .contact { grid-template-columns: 1fr; } .trust-strip, .cards, .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+	@media (max-width: 640px) { .select-trigger { width: 96px; min-height: 42px; padding-inline: 10px; font-size: 0.72rem; } .select-menu { min-width: 150px; } }
+	@media (max-width: 760px) { .nav-inner { grid-template-columns: 1fr auto auto; } .nav-links { grid-column: 1 / -1; justify-content: flex-start; overflow-x: auto; padding-bottom: 4px; } .nav-cta { grid-column: 1 / -1; width: fit-content; min-height: 42px; margin-top: 2px; } .hero { min-height: auto; padding-top: 42px; } .hero-product { aspect-ratio: 16 / 10.4; min-height: 0; } h1 { font-size: clamp(2.15rem, 10.5vw, 3.5rem); line-height: 1.08; text-shadow: 2px 2px 0 var(--neon-yellow), 4px 4px 0 var(--deep-navy); } html[lang="en"] h1 { font-size: clamp(2.05rem, 9vw, 3.2rem); } html[lang="ko"] h1, html[lang="ja"] h1 { font-size: clamp(1.9rem, 8.4vw, 2.85rem); } .section-head, .trust-strip, .cards, .steps, .mini-grid, .use-cases, .journey, .choice-grid { grid-template-columns: 1fr; } .status-grid, .tabs { grid-template-columns: 1fr; } .footer-inner { flex-direction: column; } }
+</style>

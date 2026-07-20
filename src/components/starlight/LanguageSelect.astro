@@ -1,0 +1,75 @@
+---
+import context from 'virtual:starlight/project-context';
+import config from 'virtual:starlight/user-config';
+
+function localizedPathname(locale: string | undefined): string {
+	const localeCodes = Object.keys(config.locales);
+	const parts = Astro.url.pathname.split('/').filter(Boolean);
+	const first = parts[0];
+	const rest = first && localeCodes.includes(first) ? parts.slice(1) : parts;
+	const target = locale && locale !== 'root' ? [locale, ...rest] : rest;
+	const pathname = `/${target.join('/')}`;
+	return context.trailingSlash === 'never' ? pathname : `${pathname.replace(/\/$/, '')}/`;
+}
+
+const currentLocale = Astro.locals.starlightRoute.locale;
+const options = Object.entries(config.locales).map(([code, locale]) => ({
+	code,
+	value: localizedPathname(code),
+	selected: code === currentLocale || (code === 'root' && !currentLocale),
+	label: locale!.label,
+}));
+const selectedLabel = options.find((option) => option.selected)?.label ?? options[0]?.label;
+---
+
+{
+	config.isMultilingual && (
+		<starlight-lang-select class="select-switch docs-select-switch language-switch" data-docs-language-switch>
+			<button class="select-trigger language-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label={Astro.locals.t('languageSelect.accessibleLabel')}>
+				<span data-lang-label>{selectedLabel}</span>
+			</button>
+			<div class="select-menu language-menu" role="listbox" aria-label={Astro.locals.t('languageSelect.accessibleLabel')}>
+				{options.map((option) => (
+					<button class:list={['select-option', 'language-option', { active: option.selected }]} type="button" role="option" aria-selected={String(option.selected)} data-lang={option.code} data-lang-href={option.value}>
+						{option.label}
+					</button>
+				))}
+			</div>
+		</starlight-lang-select>
+	)
+}
+
+<script>
+	function setOpen(picker: HTMLElement, open: boolean): void {
+		picker.classList.toggle('open', open);
+		picker.querySelector('.select-trigger')?.setAttribute('aria-expanded', String(open));
+	}
+
+	class StarlightLanguageSelect extends HTMLElement {
+		constructor() {
+			super();
+			this.querySelector('.select-trigger')?.addEventListener('click', () => {
+				setOpen(this, !this.classList.contains('open'));
+			});
+			this.querySelectorAll<HTMLElement>('[data-lang-href]').forEach((option) => {
+				option.addEventListener('click', () => {
+					const href = option.dataset.langHref;
+					if (href) window.location.href = href;
+				});
+			});
+			document.addEventListener('click', (event) => {
+				if (!this.contains(event.target as Node)) setOpen(this, false);
+			});
+			this.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape') setOpen(this, false);
+				if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+				event.preventDefault();
+				const options = Array.from(this.querySelectorAll<HTMLElement>('[data-lang-href]'));
+				const current = options.findIndex((option) => option.classList.contains('active'));
+				const offset = event.key === 'ArrowDown' ? 1 : -1;
+				options[(current + offset + options.length) % options.length]?.focus();
+			});
+		}
+	}
+	customElements.define('starlight-lang-select', StarlightLanguageSelect);
+</script>

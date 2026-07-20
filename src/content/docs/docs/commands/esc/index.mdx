@@ -1,0 +1,14 @@
+---
+title: ESC Commands
+description: Boxliy, Aryten, and Lin8inch command families under ESC.
+sidebar:
+  order: 2
+---
+
+ESC is usually used for receipt-style or continuous thermal output. NIB uses `EscBoxliy` as the base ESC family, with Aryten and Lin8inch adding model-specific extensions.
+
+| Family | Builder | Notes |
+| --- | --- | --- |
+| Boxliy | `EscBoxliy` | Feed, alignment, cut, image, paper, and device-query commands. |
+| Aryten | `EscAryten` | Inherits Boxliy and adds Q3 paper-type commands. |
+| Lin8inch | `EscLin8inch` | Inherits Boxliy and adds 8-inch density, media, grayscale, provisioning, and consumable extensions. |

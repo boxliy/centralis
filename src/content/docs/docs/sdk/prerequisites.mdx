@@ -1,0 +1,60 @@
+---
+title: Prerequisites
+description: Device, connection, and business details to confirm before integrating the SDK.
+sidebar:
+  order: 3
+---
+
+The goal of prerequisites is to make clear how this printer actually prints. The NIB SDK builds commands, writes to a connected device, and reads responses when needed. It does not automatically determine which Family a printer belongs to, which command language it supports, or which BLE characteristic should be written on the current platform.
+
+The earlier these facts are confirmed, the more likely the quickstart will work on the first attempt.
+
+## Device information
+
+| Item | What to confirm |
+| --- | --- |
+| Device model | Model, hardware version, whether custom firmware is used, and whether it belongs to Boxliy, Aryten, or Lin8inch. |
+| Command support | Which of ESC, TSPL, and CPCL the printer supports. Do not infer printer capabilities from SDK package names. |
+| Paper specification | Receipt paper width, label size, gap, black mark, continuous paper, and whether cutter or peel-off behavior is required. |
+| Encoding requirements | Whether text requires GBK, UTF-8, or another codepage. Confirm this especially for Chinese text printing. |
+| Images/raster | Whether you need to print images, logos, signatures, or raster content. Image processing is based on NIB image/raster capabilities. |
+| Status capabilities | Whether you need to read paper-out, cover-open, battery, firmware version, serial number, and similar data, and whether the printer truly supports those queries. |
+| Print parameters | Business defaults such as speed, density, direction, copy count, and label origin. |
+
+The specific command language must be selected according to the actual printer support. Some printers support only specific command sets. Contact the developer, hardware owner, or customer support to confirm the supported machine list.
+
+## Connection information
+
+| Connection | What to confirm |
+| --- | --- |
+| BLE | Service UUID, write characteristic, read/notify characteristic, MTU or maximum write length, whether write with response is required, and whether credit/notification pacing is used. |
+| Classic Bluetooth | Pairing method, system permissions, socket behavior, blocking writes, and reconnect behavior. |
+| USB / WebUSB | Browser or platform authorization, vendor/product filters, interfaces, endpoints, and whether users must manually choose a device. |
+| Network | Host, port, connection timeout, write timeout, reconnect and retry strategy. |
+| Mini-program/cross-platform bridge | Platform API names, permission prompt timing, device ID lifecycle, and connection state after foreground/background transitions. |
+
+The connection layer should ultimately produce a connected device, not a raw platform object that print templates call directly.
+
+## Application requirements
+
+| Item | What to confirm |
+| --- | --- |
+| Target platform | Which of TypeScript, Dart, Java, Objective-C, and Swift will actually be delivered. |
+| Print content | Receipts, labels, barcodes, QR codes, images, batch jobs, or simple text only. |
+| Session strategy | Whether to connect temporarily before printing or keep the connection open, and whether to retry automatically after failures. |
+| Status reads | Whether status must be read before or after printing, and how the business flow handles missing responses. |
+| Logging requirements | Whether to record connection events, byte length, chunk progress, status responses, and error causes. |
+| Offline capability | Whether to cache print jobs, and how to reprint after the connection is restored. |
+
+These details determine whether the SDK integration should start with the language page, the connection page, or the flow-control and status-read pages.
+
+## Common symptoms
+
+| Missing or incorrect fact | Common symptom | Next step |
+| --- | --- | --- |
+| Wrong command family | The device receives writes but does not print, or prints raw command text. | Return to device materials and confirm whether the printer supports ESC, TSPL, or CPCL. |
+| Wrong paper specification | Labels shift, print halfway, feed continuously, or gap/black mark positioning fails. | Confirm paper width, label height, gap/black mark/continuous settings. |
+| Wrong BLE characteristic | Connection succeeds but writes fail, or writes succeed with no response. | Check service, write, and read/notify characteristics, and confirm whether automatic selection of different characteristics is allowed. |
+| Chunk size too large | Small data prints, but large templates or images fail. | Set chunk size according to MTU or the platform maximum write length. |
+| Encoding mismatch | English prints normally, but Chinese text is garbled or missing. | Confirm the printer codepage and choose the corresponding builder/encoding setting. |
+| Unsupported status capability | Queries time out, or responses cannot be parsed. | Confirm whether the printer and current command family support that status query. |

@@ -1,0 +1,14 @@
+---
+title: ESC 명령
+description: ESC의 Boxliy, Aryten, Lin8inch command families.
+sidebar:
+  order: 2
+---
+
+ESC는 receipt-style 또는 continuous thermal output에 자주 사용됩니다. NIB는 `EscBoxliy`를 기반으로 Aryten과 Lin8inch가 장치별 확장을 추가합니다.
+
+| Family | Builder | Notes |
+| --- | --- | --- |
+| Boxliy | `EscBoxliy` | Feed, alignment, cut, image, paper, and device-query commands. |
+| Aryten | `EscAryten` | Inherits Boxliy and adds Q3 paper-type commands. |
+| Lin8inch | `EscLin8inch` | Inherits Boxliy and adds 8-inch density, media, grayscale, provisioning, and consumable extensions. |

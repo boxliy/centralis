@@ -1,0 +1,308 @@
+---
+type Protocol = 'overview' | 'esc' | 'tspl' | 'cpcl';
+type Family = 'boxliy' | 'aryten' | 'lin8inch';
+
+type CommandRow = {
+	group: string;
+	method: string;
+	command: string;
+	params: string;
+	purpose: string;
+	note?: string;
+};
+
+interface Props {
+	protocol: Protocol;
+	family?: Family;
+}
+
+const { protocol, family } = Astro.props;
+const locale = Astro.locals.starlightRoute.locale || 'root';
+const isZhHans = locale === 'zh-hans';
+const isZhHant = locale === 'zh-hant';
+const isChinese = isZhHans || isZhHant;
+
+const copy = {
+	overviewTitle: isChinese ? '指令族关系' : 'Command family model',
+	overviewText: isChinese
+		? 'NIB 的指令不是单一列表，而是先按协议分层，再按 Family 区分机型扩展。集成时先确认机器支持的协议，再选择对应 Family 的构建器。'
+		: 'NIB commands are organized by protocol first, then by family. Confirm the protocol supported by the printer firmware before choosing the matching family builder.',
+	protocol: isChinese ? '协议' : 'Protocol',
+	family: isChinese ? 'Family' : 'Family',
+	builder: isChinese ? '构建器' : 'Builder',
+	coverage: isChinese ? '覆盖范围' : 'Coverage',
+	commandTitle: isChinese ? '命令清单' : 'Command list',
+	method: isChinese ? 'SDK 方法' : 'SDK method',
+	command: isChinese ? '实际指令' : 'Emitted command',
+	params: isChinese ? '参数' : 'Parameters',
+	purpose: isChinese ? '作用' : 'Purpose',
+	note: isChinese ? '返回 / 备注' : 'Response / notes',
+	inheritBoxliy: isChinese ? '继承 Boxliy 的公开命令。' : 'Inherits the public Boxliy command surface.',
+	firmwareNote: isChinese
+		? '具体机器支持哪些协议、Family 和参数值，需要以目标机器固件为准；机器支持列表请联系开发人员或客服确认。'
+		: 'The supported protocols, families, and parameter values depend on the target firmware. Ask engineering or support for the printer support list.',
+	noCpclLin8inch: isChinese ? '当前 NIB 没有 Lin8inch CPCL 构建器。' : 'NIB does not currently expose a Lin8inch CPCL builder.',
+};
+
+const familyNames: Record<Family, string> = {
+	boxliy: 'Boxliy',
+	aryten: 'Aryten',
+	lin8inch: 'Lin8inch',
+};
+
+const group = {
+	layout: isChinese ? '打印与版面' : 'Print and layout',
+	image: isChinese ? '图片与图形' : 'Images and graphics',
+	media: isChinese ? '纸张 / 介质' : 'Paper and media',
+	status: isChinese ? '状态查询' : 'Status queries',
+	device: isChinese ? '设备信息' : 'Device information',
+	settings: isChinese ? '设备设置' : 'Device settings',
+	composite: isChinese ? '组合方法 / 别名' : 'Composites and aliases',
+};
+
+const escBoxliy: CommandRow[] = [
+	{ group: group.layout, method: 'reset()', command: '1B 40', params: '-', purpose: isChinese ? '初始化 ESC 打印机状态。' : 'Initializes ESC printer state.' },
+	{ group: group.layout, method: 'newLine()', command: '0A', params: '-', purpose: isChinese ? '输出换行。' : 'Prints a line feed.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by the Java SDK.' },
+	{ group: group.layout, method: 'feed(lines) / lineRow(rows)', command: '1B 64 {lines}', params: isChinese ? 'lines: 走纸行数。' : 'lines: number of feed lines.', purpose: isChinese ? '按行走纸。' : 'Feeds by line count.', note: isChinese ? 'Java SDK 暴露；TypeScript 当前使用 lineDot。' : 'Exposed by Java; TypeScript currently uses lineDot.' },
+	{ group: group.layout, method: 'lineDot(dot)', command: '1B 4A {dot}', params: isChinese ? 'dot: 走纸点数。' : 'dot: feed distance in dots.', purpose: isChinese ? '按点数正向走纸。' : 'Feeds forward by dots.' },
+	{ group: group.layout, method: 'backLineDot(dot)', command: '10 FF 81 {dot}', params: isChinese ? 'dot: 回退点数。' : 'dot: reverse feed distance in dots.', purpose: isChinese ? '按点数反向走纸。' : 'Feeds backward by dots.' },
+	{ group: group.layout, method: 'location(loc)', command: '1B 61 {loc}', params: isChinese ? 'loc: 对齐值。' : 'loc: alignment value.', purpose: isChinese ? '设置打印对齐方式。' : 'Sets text alignment.' },
+	{ group: group.layout, method: 'line(x, y)', command: '00 01 {x} {y}', params: isChinese ? 'x/y: 线段参数。' : 'x/y: line parameters.', purpose: isChinese ? '写入 Boxliy 线条指令。' : 'Writes the Boxliy line command.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.layout, method: 'cut()', command: '1D 56 00', params: '-', purpose: isChinese ? '执行切纸。' : 'Cuts paper.' },
+	{ group: group.layout, method: 'lineDotCut()', command: '1D 56 42 01', params: '-', purpose: isChinese ? '走纸后切纸。' : 'Feeds a short distance and cuts.' },
+	{ group: group.layout, method: 'position()', command: '1D 0C', params: '-', purpose: isChinese ? '定位标签或当前位置。' : 'Positions the current label or media.' },
+	{ group: group.image, method: 'image(...)', command: '1D 76 30 {mode} {widthL} {widthH} {heightL} {heightH} {bitmap}', params: isChinese ? 'image、threshold、reverse、compress、mode。' : 'image, threshold, reverse, compress, mode.', purpose: isChinese ? '发送 ESC 光栅图片。' : 'Sends an ESC raster image.', note: isChinese ? '压缩模式使用 1F 00 头。灰度位图见 Lin8inch。' : 'Compressed mode uses the 1F 00 header. Grayscale is listed under Lin8inch.' },
+	{ group: group.media, method: 'thickness(level) / line(thickness)', command: '10 FF 10 00 {level}', params: isChinese ? 'level: 打印浓度或线条厚度等级。' : 'level: density or line thickness level.', purpose: isChinese ? '设置浓度/厚度类参数。' : 'Sets density/thickness-like parameter.' },
+	{ group: group.media, method: 'learnLabelGap()', command: '10 FF 03', params: '-', purpose: isChinese ? '触发标签间隙学习。' : 'Starts label gap learning.' },
+	{ group: group.media, method: 'paperType(type)', command: '10 FF 10 03 {type}', params: isChinese ? 'type: 纸张类型枚举。' : 'type: paper type enum.', purpose: isChinese ? '设置纸张类型。' : 'Sets paper type.' },
+	{ group: group.status, method: 'queryBatteryLevel() / batteryVolume()', command: '10 FF 50 F1', params: '-', purpose: isChinese ? '查询电量。' : 'Queries battery level.' },
+	{ group: group.status, method: 'queryStatus() / state() / status()', command: '10 FF 40 / 10 FF FE 20', params: '-', purpose: isChinese ? '查询设备状态。' : 'Queries printer status.', note: isChinese ? '不同 SDK 版本中 state 的底层指令存在差异，按目标语言源码为准。' : 'The state command differs between SDK versions; follow the source for the target language.' },
+	{ group: group.device, method: 'queryDeviceInfo() / info()', command: '10 FF 70', params: '-', purpose: isChinese ? '查询设备信息。' : 'Queries device information.' },
+	{ group: group.device, method: 'queryModel() / model()', command: '10 FF 20 F0', params: '-', purpose: isChinese ? '查询型号。' : 'Queries model.' },
+	{ group: group.device, method: 'queryFirmwareVersion() / version()', command: '10 FF 20 F1', params: '-', purpose: isChinese ? '查询固件版本。' : 'Queries firmware version.' },
+	{ group: group.device, method: 'printerVersion()', command: '10 FF 20 FF / 10 FF 20 F1', params: '-', purpose: isChinese ? '查询打印机版本。' : 'Queries printer version.', note: isChinese ? 'Java 与 TypeScript 当前输出不同。' : 'Java and TypeScript currently emit different bytes.' },
+	{ group: group.device, method: 'querySerialNumber() / sn()', command: '10 FF 20 F2', params: '-', purpose: isChinese ? '查询序列号。' : 'Queries serial number.' },
+	{ group: group.device, method: 'name()', command: '10 FF 30 11', params: '-', purpose: isChinese ? '查询蓝牙名称或设备名称。' : 'Queries Bluetooth/device name.' },
+	{ group: group.device, method: 'mac()', command: '10 FF 30 12', params: '-', purpose: isChinese ? '查询 MAC 地址。' : 'Queries MAC address.' },
+	{ group: group.device, method: 'nn()', command: '10 FF 20 F9', params: '-', purpose: isChinese ? '查询设备 NN 信息。' : 'Queries NN device information.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.settings, method: 'enable()', command: '10 FF FE 01', params: '-', purpose: isChinese ? '使能设备或打印任务。' : 'Enables the device or print task.' },
+	{ group: group.settings, method: 'stopJob()', command: '10 FF FE 45', params: '-', purpose: isChinese ? '停止当前任务。' : 'Stops the current job.' },
+	{ group: group.settings, method: 'wakeup(length)', command: '00 ... 00', params: isChinese ? 'length: 默认 12 个 0 字节。' : 'length: defaults to 12 zero bytes.', purpose: isChinese ? '唤醒设备。' : 'Wakes the device.' },
+	{ group: group.settings, method: 'setBTType()', command: '1F B2 10', params: '-', purpose: isChinese ? '设置蓝牙类型或传输模式。' : 'Sets Bluetooth type or transport mode.' },
+	{ group: group.settings, method: 'setShutdownTime(time)', command: '10 FF 12 {timeH} {timeL}', params: isChinese ? 'time: 自动关机时间。' : 'time: auto-shutdown value.', purpose: isChinese ? '设置自动关机时间。' : 'Sets auto-shutdown time.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.settings, method: 'getShutdownTime()', command: '10 FF 13', params: '-', purpose: isChinese ? '查询自动关机时间。' : 'Queries auto-shutdown time.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.settings, method: 'setCurrentTime(options)', command: '10 FF 14 02 {sec} {min} {hour} {day} {week} {month} {year}', params: isChinese ? '时间字段，缺省为 0。' : 'Time fields, defaulting to 0.', purpose: isChinese ? '设置设备当前时间。' : 'Sets current device time.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.composite, method: 'raw(...)', command: isChinese ? '调用方提供的原始 bytes 或文本。' : 'Caller-provided raw bytes or text.', params: isChinese ? 'bytes/template。' : 'bytes/template.', purpose: isChinese ? '逃生口：发送 SDK 尚未封装的指令。' : 'Escape hatch for commands not wrapped by the SDK.' },
+];
+
+const escAryten: CommandRow[] = [
+	{ group: group.composite, method: 'EscAryten', command: copy.inheritBoxliy, params: '-', purpose: isChinese ? '继承 ESC Boxliy 的命令能力。' : 'Inherits ESC Boxliy commands.' },
+	{ group: group.media, method: 'paperTypeQ3(type)', command: '10 FF 84 {type}', params: isChinese ? 'type: Q3 纸张类型。' : 'type: Q3 paper type.', purpose: isChinese ? '设置 Q3 纸张类型。' : 'Sets Q3 paper type.' },
+	{ group: group.media, method: 'getPaperTypeQ3()', command: '10 FF 85', params: '-', purpose: isChinese ? '查询 Q3 纸张类型。' : 'Queries Q3 paper type.' },
+];
+
+const escLin8inch: CommandRow[] = [
+	{ group: group.composite, method: 'EscLin8inch', command: copy.inheritBoxliy, params: '-', purpose: isChinese ? '继承 ESC Boxliy，并增加 8 寸机型扩展。' : 'Inherits ESC Boxliy and adds 8-inch printer extensions.' },
+	{ group: group.status, method: 'batteryLevel()', command: '10 FF 50 F1', params: '-', purpose: isChinese ? '查询 8 寸机型电量。' : 'Queries battery level for 8-inch models.' },
+	{ group: group.device, method: 'extendedModel()', command: '1D 67 6B', params: '-', purpose: isChinese ? '查询扩展型号信息。' : 'Queries extended model information.' },
+	{ group: group.device, method: 'bootVersion()', command: '10 FF 20 EF', params: '-', purpose: isChinese ? '查询 boot 版本。' : 'Queries boot version.' },
+	{ group: group.settings, method: 'advancedDensity(level)', command: '1F 70 01 {level}', params: isChinese ? 'level: 高级浓度等级。' : 'level: advanced density level.', purpose: isChinese ? '设置高级浓度。' : 'Sets advanced density.' },
+	{ group: group.status, method: 'advancedDensityStatus()', command: '1F 70 00 00', params: '-', purpose: isChinese ? '查询高级浓度状态。' : 'Queries advanced density status.' },
+	{ group: group.media, method: 'mediaProfile(profile)', command: '10 FF 84 {profile}', params: isChinese ? 'profile: 介质配置。' : 'profile: media profile.', purpose: isChinese ? '设置介质配置。' : 'Sets media profile.' },
+	{ group: group.media, method: 'mediaProfileStatus()', command: '10 FF 85', params: '-', purpose: isChinese ? '查询介质配置。' : 'Queries media profile.' },
+	{ group: group.image, method: 'grayMode()', command: '10 FF BD 02', params: '-', purpose: isChinese ? '进入灰度模式。' : 'Enables grayscale mode.' },
+	{ group: group.image, method: 'grayscaleImage(options) / imageGray(image)', command: '1D 76 30 00 {widthL} {widthH} {heightL} {heightH} {grayBitmap}', params: isChinese ? 'image、compress、reverse。' : 'image, compress, reverse.', purpose: isChinese ? '发送灰度图片数据。' : 'Sends grayscale raster image data.' },
+	{ group: group.settings, method: 'wirelessProvisioning(ssid, password, mode)', command: '10 FF 31 02 {lenL} 00 {tlvPayload}', params: isChinese ? 'SSID、密码、模式。' : 'SSID, password, mode.', purpose: isChinese ? '写入无线配网信息。' : 'Writes wireless provisioning data.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.status, method: 'wirelessProvisioningStatus()', command: '10 FF 31 01', params: '-', purpose: isChinese ? '查询无线配网状态。' : 'Queries wireless provisioning status.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.settings, method: 'compressedRasterTransport()', command: '1F B2 10', params: '-', purpose: isChinese ? '切换压缩光栅传输。' : 'Switches compressed raster transport.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.media, method: 'mediaTag()', command: '10 FF 35 12', params: '-', purpose: isChinese ? '查询介质标签信息。' : 'Queries media tag information.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.media, method: 'mediaTagUid()', command: '10 FF 35 11', params: '-', purpose: isChinese ? '查询介质标签 UID。' : 'Queries media tag UID.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.media, method: 'consumedMediaLength()', command: '10 FF 35 13', params: '-', purpose: isChinese ? '查询已消耗介质长度。' : 'Queries consumed media length.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.media, method: 'remainingMediaLength()', command: '10 FF 35 14', params: '-', purpose: isChinese ? '查询剩余介质长度。' : 'Queries remaining media length.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.media, method: 'restoreLabelStartPosition()', command: '1F 11 10 00 20', params: '-', purpose: isChinese ? '恢复标签起始位置。' : 'Restores label start position.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.media, method: 'alternateMotionProfile()', command: '1F 60 02 02', params: '-', purpose: isChinese ? '切换备用运动曲线。' : 'Switches alternate motion profile.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+];
+
+const tsplBoxliy: CommandRow[] = [
+	{ group: group.media, method: 'size(width, height)', command: 'SIZE {width} mm,{height} mm', params: isChinese ? 'width/height: 标签尺寸，单位 mm。' : 'width/height: label size in mm.', purpose: isChinese ? '设置标签尺寸。' : 'Sets label size.' },
+	{ group: group.media, method: 'gap(height, offset) / label(...)', command: 'GAP {height} mm,{offset} mm', params: isChinese ? 'height/offset: 间隙和偏移。' : 'height/offset: gap and offset.', purpose: isChinese ? '设置间隙标签。' : 'Sets gap-label media.' },
+	{ group: group.media, method: 'bline(height, offset)', command: 'BLINE {height} mm,{offset} mm', params: isChinese ? 'height/offset: 黑标高度和偏移。' : 'height/offset: black-mark height and offset.', purpose: isChinese ? '设置黑标纸。' : 'Sets black-mark media.' },
+	{ group: group.media, method: 'continuous()', command: 'CONTINUOUS / GAP 0 mm,0 mm', params: '-', purpose: isChinese ? '设置连续纸。' : 'Sets continuous media.', note: isChinese ? '不同 SDK 输出略有差异。' : 'Output differs slightly by SDK.' },
+	{ group: group.layout, method: 'cls()', command: 'CLS', params: '-', purpose: isChinese ? '清空打印缓冲区。' : 'Clears print buffer.' },
+	{ group: group.layout, method: 'direction(rotation, mirror)', command: 'DIRECTION {rotation},{mirror}', params: isChinese ? 'rotation、mirror。' : 'rotation, mirror.', purpose: isChinese ? '设置打印方向和镜像。' : 'Sets direction and mirror mode.' },
+	{ group: group.layout, method: 'reference(x, y)', command: 'REFERENCE {x},{y}', params: isChinese ? 'x/y: 参考点。' : 'x/y: reference origin.', purpose: isChinese ? '设置坐标原点。' : 'Sets coordinate origin.' },
+	{ group: group.layout, method: 'offset(mm)', command: 'OFFSET {mm} mm', params: isChinese ? 'mm: 偏移量。' : 'mm: offset.', purpose: isChinese ? '设置整体偏移。' : 'Sets global offset.' },
+	{ group: group.layout, method: 'shift(dots)', command: 'SHIFT {dots}', params: isChinese ? 'dots: 点数偏移。' : 'dots: dot offset.', purpose: isChinese ? '设置横向位移。' : 'Sets horizontal shift.' },
+	{ group: group.layout, method: 'speed(speed)', command: 'SPEED {speed}', params: isChinese ? 'speed: 打印速度。' : 'speed: print speed.', purpose: isChinese ? '设置速度。' : 'Sets speed.' },
+	{ group: group.layout, method: 'density(density)', command: 'DENSITY {density}', params: isChinese ? 'density: 浓度。' : 'density: density.', purpose: isChinese ? '设置浓度。' : 'Sets density.' },
+	{ group: group.settings, method: 'codePage(codePage)', command: 'CODEPAGE {value}', params: isChinese ? 'codePage: 代码页。' : 'codePage: code page.', purpose: isChinese ? '设置字符代码页。' : 'Sets character code page.', note: isChinese ? 'Java SDK 暴露；Lin8inch 另有 gbkCodepage/utf8Codepage。' : 'Exposed by Java; Lin8inch also has gbkCodepage/utf8Codepage.' },
+	{ group: group.settings, method: 'gapSensor(enabled)', command: 'SET GAP ON|OFF', params: isChinese ? 'enabled: 是否启用。' : 'enabled: on/off.', purpose: isChinese ? '开关间隙传感器。' : 'Turns gap sensing on or off.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.settings, method: 'ribbon(enabled)', command: 'RIBBON ON|OFF / SET RIBBON ON|OFF', params: isChinese ? 'enabled: 是否启用碳带。' : 'enabled: ribbon on/off.', purpose: isChinese ? '设置碳带模式。' : 'Sets ribbon mode.' },
+	{ group: group.settings, method: 'cut(enabled)', command: 'SET CUTTER 1|0 / SET CUTTER ON|OFF', params: isChinese ? 'enabled: 是否启用切刀。' : 'enabled: cutter on/off.', purpose: isChinese ? '设置切刀。' : 'Sets cutter mode.' },
+	{ group: group.settings, method: 'tear(enabled)', command: 'SET TEAR ON|OFF', params: isChinese ? 'enabled: 是否启用撕纸。' : 'enabled: tear on/off.', purpose: isChinese ? '设置撕纸模式。' : 'Sets tear mode.' },
+	{ group: group.settings, method: 'peel(enabled)', command: 'SET PEEL ON|OFF', params: isChinese ? 'enabled: 是否启用剥离。' : 'enabled: peel on/off.', purpose: isChinese ? '设置剥离模式。' : 'Sets peel mode.' },
+	{ group: group.layout, method: 'bar(...)', command: 'BAR {x},{y},{width},{height},{line}', params: isChinese ? 'x/y、宽高、线型。' : 'x/y, size, line style.', purpose: isChinese ? '绘制 TSPL 条块。' : 'Draws a TSPL bar.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.layout, method: 'line(...)', command: 'LINE {x1},{y1},{x2},{y2},{width}', params: isChinese ? '起止点和线宽。' : 'Start/end points and width.', purpose: isChinese ? '绘制线条。' : 'Draws a line.' },
+	{ group: group.layout, method: 'box(...)', command: 'BOX {x1},{y1},{x2},{y2},{width},{radius}', params: isChinese ? '矩形范围、线宽、圆角。' : 'Box bounds, width, radius.', purpose: isChinese ? '绘制矩形。' : 'Draws a box.' },
+	{ group: group.layout, method: 'circle(...)', command: 'CIRCLE {x},{y},{radius},{width}', params: isChinese ? '圆心、半径、线宽。' : 'Center, radius, line width.', purpose: isChinese ? '绘制圆。' : 'Draws a circle.' },
+	{ group: group.layout, method: 'ellipse(...)', command: 'ELLIPSE {x},{y},{width},{height},{lineWidth}', params: isChinese ? '位置、宽高、线宽。' : 'Position, size, line width.', purpose: isChinese ? '绘制椭圆。' : 'Draws an ellipse.' },
+	{ group: group.layout, method: 'text(...)', command: 'TEXT {x},{y},"{font}",{rotation},{xMul},{yMul},"{content}"', params: isChinese ? '坐标、字体、旋转、缩放、内容。' : 'Position, font, rotation, scale, content.', purpose: isChinese ? '打印单行文本。' : 'Prints single-line text.' },
+	{ group: group.layout, method: 'textBox(...)', command: 'TEXTBOX {x},{y},"{font}",{rotation},{xMul},{yMul},{width}[,L{lineSpace}][,B1][,D{rotation}],"{content}"', params: isChinese ? '文本框参数。' : 'Text box parameters.', purpose: isChinese ? '打印多行文本框。' : 'Prints text inside a box.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.layout, method: 'barcode(...)', command: 'BARCODE {x},{y},"{type}",{height},{show},{rotation},{cellW},{cellW},"{content}"', params: isChinese ? '条码类型、高度、显示方式、旋转、宽度、内容。' : 'Barcode type, height, display mode, rotation, width, content.', purpose: isChinese ? '打印一维条码。' : 'Prints a 1D barcode.' },
+	{ group: group.layout, method: 'qrcode(...)', command: 'QRCODE {x},{y},{level},{cellWidth},A,{rotation},M2,S7[,V{version}],"{content}"', params: isChinese ? '纠错等级、单元宽度、旋转、版本、内容。' : 'Correction level, cell width, rotation, version, content.', purpose: isChinese ? '打印二维码。' : 'Prints a QR code.' },
+	{ group: group.layout, method: 'dmatrix(...)', command: 'DMATRIX {x},{y},{width},{height},"{content}"', params: isChinese ? '坐标、宽高、内容。' : 'Position, size, content.', purpose: isChinese ? '打印 Data Matrix。' : 'Prints a Data Matrix code.' },
+	{ group: group.image, method: 'image(...)', command: 'BITMAP {x},{y},{byteWidth},{height},{mode},{bitmap}', params: isChinese ? '图片、坐标、阈值、反色、压缩、模式。' : 'Image, position, threshold, reverse, compression, mode.', purpose: isChinese ? '发送位图到页面。' : 'Sends a bitmap to the page.', note: isChinese ? '压缩模式使用 mode 3 并附加数据长度。' : 'Compressed mode uses mode 3 and includes data length.' },
+	{ group: group.image, method: 'downloadBmp(fileName, data)', command: 'DOWNLOAD "{fileName}",{length},{data}', params: isChinese ? '文件名和图片数据。' : 'File name and image data.', purpose: isChinese ? '下载位图到设备。' : 'Downloads bitmap data to the device.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.image, method: 'putImage(...)', command: 'PUTBMP {x},{y},"{fileName}",{contrast},{brightness}', params: isChinese ? '坐标、文件名、对比度、亮度。' : 'Position, file name, contrast, brightness.', purpose: isChinese ? '打印已下载图片。' : 'Prints a downloaded bitmap.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.status, method: 'detect()', command: 'SELFTEST PATTERN', params: '-', purpose: isChinese ? '执行自检图样。' : 'Runs self-test pattern.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.status, method: 'readState()', command: 'READSTA', params: '-', purpose: isChinese ? '读取状态。' : 'Reads status.' },
+	{ group: group.status, method: 'status() / state()', command: 'STATUS', params: '-', purpose: isChinese ? '查询状态。' : 'Queries status.' },
+	{ group: group.status, method: 'realtimeStatus()', command: '1B 21 3F', params: '-', purpose: isChinese ? '查询实时状态。' : 'Queries realtime status.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.device, method: 'querySerialNumber()', command: 'READC PRDOCUTID', params: '-', purpose: isChinese ? '读取产品 ID/序列相关信息。' : 'Reads product ID / serial-related data.', note: isChinese ? '按源码保留 PRDOCUTID 拼写。' : 'Keeps PRDOCUTID spelling from source.' },
+	{ group: group.device, method: 'sn() / sns()', command: 'SN?', params: '-', purpose: isChinese ? '查询序列号。' : 'Queries serial number.' },
+	{ group: group.device, method: 'queryVersion()', command: 'READC VERSION', params: '-', purpose: isChinese ? '读取版本信息。' : 'Reads version information.' },
+	{ group: group.device, method: 'version() / versions()', command: 'VERSION', params: '-', purpose: isChinese ? '查询版本。' : 'Queries version.' },
+	{ group: group.device, method: 'queryModel()', command: 'READC MDDLE', params: '-', purpose: isChinese ? '读取型号信息。' : 'Reads model information.', note: isChinese ? '按源码保留 MDDLE 拼写。' : 'Keeps MDDLE spelling from source.' },
+	{ group: group.device, method: 'model() / models()', command: 'MODEL?', params: '-', purpose: isChinese ? '查询型号。' : 'Queries model.' },
+	{ group: group.status, method: 'batteryVolume()', command: 'READC BATTERY_LEVEL', params: '-', purpose: isChinese ? '查询电量。' : 'Queries battery level.' },
+	{ group: group.layout, method: 'print(copies) / print(sets, copies)', command: 'PRINT {sets},{copies}', params: isChinese ? '份数和套数。' : 'sets and copies.', purpose: isChinese ? '触发打印。' : 'Starts printing.' },
+	{ group: group.composite, method: 'raw(...)', command: isChinese ? '调用方提供的 TSPL 文本。' : 'Caller-provided TSPL text.', params: isChinese ? 'template/args。' : 'template/args.', purpose: isChinese ? '发送未封装的 TSPL 指令。' : 'Sends an unwrapped TSPL command.' },
+];
+
+const tsplLin8inch: CommandRow[] = [
+	{ group: group.composite, method: 'TsplLin8inch', command: copy.inheritBoxliy, params: '-', purpose: isChinese ? '继承 TSPL Boxliy，并增加 8 寸机型扩展。' : 'Inherits TSPL Boxliy and adds 8-inch printer extensions.' },
+	{ group: group.status, method: 'automaticStatusFeedback(enable)', command: '1F 28 63 0A 00 11 22 33 44 {flag} 00 44 33 22 11', params: isChinese ? 'enable: true 启用，false 禁用。' : 'enable: true to enable, false to disable.', purpose: isChinese ? '设置自动状态反馈。' : 'Configures automatic status feedback.' },
+	{ group: group.status, method: 'printCompletion(token)', command: '1D 28 48 06 00 30 30 {d1} {d2} {d3} {d4}', params: isChinese ? 'token: 4 字节回包标记。' : 'token: 4-byte response token.', purpose: isChinese ? '配置打印完成回包。' : 'Configures print-completion response.' },
+	{ group: group.status, method: 'printerStatus(flag)', command: '10 04 {flag}', params: isChinese ? 'flag: 状态类型。' : 'flag: status selector.', purpose: isChinese ? '查询指定类型状态。' : 'Queries selected status.' },
+	{ group: group.device, method: 'firmwareVersion()', command: '1F 28 63 02 00 52 56', params: '-', purpose: isChinese ? '查询固件版本。' : 'Queries firmware version.' },
+	{ group: group.device, method: 'serialNumber()', command: '1F 28 63 02 00 52 53', params: '-', purpose: isChinese ? '查询序列号。' : 'Queries serial number.' },
+	{ group: group.device, method: 'macAddress()', command: '1F 62', params: '-', purpose: isChinese ? '查询 MAC 地址。' : 'Queries MAC address.' },
+	{ group: group.settings, method: 'deviceSpeed(speed)', command: '1F 28 73 02 00 {speedL} {speedH}', params: isChinese ? 'speed: 0 到 150，源码会限幅。' : 'speed: clamped to 0-150.', purpose: isChinese ? '设置设备速度。' : 'Sets device speed.' },
+	{ group: group.status, method: 'deviceSelfTest()', command: '12 54', params: '-', purpose: isChinese ? '执行设备自检。' : 'Runs device self-test.' },
+	{ group: group.status, method: 'thermalStatus()', command: 'READSTA', params: '-', purpose: isChinese ? '读取热敏状态。' : 'Reads thermal status.' },
+	{ group: group.device, method: 'productId()', command: 'READC PRDOCUTID', params: '-', purpose: isChinese ? '读取产品 ID。' : 'Reads product ID.', note: isChinese ? '按源码保留 PRDOCUTID 拼写。' : 'Keeps PRDOCUTID spelling from source.' },
+	{ group: group.device, method: 'versionInfo()', command: 'READC VERSION', params: '-', purpose: isChinese ? '读取版本信息。' : 'Reads version information.' },
+	{ group: group.status, method: 'selfTestPage()', command: 'SELFTEST', params: '-', purpose: isChinese ? '打印自检页。' : 'Prints self-test page.' },
+	{ group: group.settings, method: 'redDensity(density)', command: 'RED {density}', params: isChinese ? 'density: 红色/强调色浓度。' : 'density: red/accent density.', purpose: isChinese ? '设置红色浓度。' : 'Sets red density.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.settings, method: 'blackColor()', command: 'SETCOLOR BLACK', params: '-', purpose: isChinese ? '设置黑色打印。' : 'Sets black color mode.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.settings, method: 'ribbonEnd(enable)', command: 'SET RIBBON_END ON|OFF', params: isChinese ? 'enable: 是否开启。' : 'enable: on/off.', purpose: isChinese ? '设置碳带结束检测。' : 'Sets ribbon-end detection.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.status, method: 'ribbonEndStatus()', command: 'GET RIBBON_END', params: '-', purpose: isChinese ? '查询碳带结束检测状态。' : 'Queries ribbon-end detection.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.device, method: 'modelSetting()', command: 'OUT GETSETTING$("SYSTEM","INFORMATION","MODEL")', params: '-', purpose: isChinese ? '读取系统型号设置。' : 'Reads model setting.' },
+	{ group: group.device, method: 'serialSetting()', command: 'OUT GETSETTING$("SYSTEM","INFORMATION","SERIAL")', params: '-', purpose: isChinese ? '读取系统序列号设置。' : 'Reads serial setting.' },
+	{ group: group.device, method: 'versionSetting()', command: 'OUT GETSETTING$("SYSTEM","INFORMATION","VERSION")', params: '-', purpose: isChinese ? '读取系统版本设置。' : 'Reads version setting.' },
+	{ group: group.settings, method: 'gbkCodepage()', command: 'CODEPAGE 936', params: '-', purpose: isChinese ? '切换到 GBK 代码页。' : 'Switches to GBK code page.' },
+	{ group: group.settings, method: 'utf8Codepage()', command: 'CODEPAGE UTF-8', params: '-', purpose: isChinese ? '切换到 UTF-8 代码页。' : 'Switches to UTF-8 code page.' },
+	{ group: group.media, method: 'gapDetection()', command: 'GAPDETECT', params: '-', purpose: isChinese ? '执行间隙检测。' : 'Runs gap detection.' },
+	{ group: group.media, method: 'configureStock(sensor, markOrGapMm, offsetMm)', command: 'GAP ... / BLINE ... / GAP 0 mm,0 mm', params: isChinese ? 'sensor: DIE_CUT、BLACK_MARK、CONTINUOUS。' : 'sensor: DIE_CUT, BLACK_MARK, CONTINUOUS.', purpose: isChinese ? '按介质类型组合设置纸张。' : 'Configures media by stock type.', note: isChinese ? 'Java SDK 暴露的组合方法。' : 'Composite exposed by Java.' },
+	{ group: group.settings, method: 'configurePresentation(mode)', command: 'SET CUTTER ... + SET TEAR ... + SET PEEL ...', params: isChinese ? 'mode: NONE、TEAR_OFF、PEEL_OFF、CUT。' : 'mode: NONE, TEAR_OFF, PEEL_OFF, CUT.', purpose: isChinese ? '组合设置出纸方式。' : 'Configures presentation mode.', note: isChinese ? 'Java SDK 暴露的组合方法。' : 'Composite exposed by Java.' },
+	{ group: group.settings, method: 'twoColorRibbon(accentDensity)', command: 'RIBBON ON + SET RESIN {accentDensity}', params: isChinese ? 'accentDensity: 强调色浓度。' : 'accentDensity: accent density.', purpose: isChinese ? '设置双色碳带。' : 'Sets two-color ribbon.', note: isChinese ? 'Java SDK 暴露的组合方法。' : 'Composite exposed by Java.' },
+	{ group: group.settings, method: 'directThermal()', command: 'RIBBON OFF + SET RESIN 0', params: '-', purpose: isChinese ? '设置直热模式。' : 'Sets direct thermal mode.', note: isChinese ? 'Java SDK 暴露的组合方法。' : 'Composite exposed by Java.' },
+];
+
+const cpclBoxliy: CommandRow[] = [
+	{ group: group.layout, method: 'begin(height, copies) / page(...)', command: '! 0 200 200 {height} {copies}', params: isChinese ? 'height: 页面高度；copies: 份数。' : 'height: page height; copies: copy count.', purpose: isChinese ? '开始 CPCL 页面。' : 'Starts a CPCL page.' },
+	{ group: group.layout, method: 'pageWidth(width)', command: 'PAGE-WIDTH {width}', params: isChinese ? 'width: 页面宽度。' : 'width: page width.', purpose: isChinese ? '设置页面宽度。' : 'Sets page width.' },
+	{ group: group.media, method: 'gapSense()', command: 'GAP-SENSE', params: '-', purpose: isChinese ? '启用间隙纸检测。' : 'Enables gap sensing.' },
+	{ group: group.media, method: 'barSense()', command: 'BAR-SENSE', params: '-', purpose: isChinese ? '启用黑标检测。' : 'Enables black-mark sensing.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.media, method: 'paperType(type)', command: 'GAP-SENSE / BAR-SENSE / no-op', params: isChinese ? 'type: GAP、BLACK_MARK、CONTINUOUS。' : 'type: GAP, BLACK_MARK, CONTINUOUS.', purpose: isChinese ? '按纸张类型选择检测方式。' : 'Selects sensing command by paper type.' },
+	{ group: group.layout, method: 'text(...)', command: 'T{rotation} {fontFamily} {fontSize} {x} {y} {content}', params: isChinese ? '字体、尺寸、坐标、内容、旋转、字符集。' : 'Font, size, position, content, rotation, charset.', purpose: isChinese ? '打印文本。' : 'Prints text.' },
+	{ group: group.layout, method: 'setMag(font)', command: 'SETMAG {ex} {ey}', params: isChinese ? 'font: 字体枚举。' : 'font: font enum.', purpose: isChinese ? '设置字体放大倍率。' : 'Sets font magnification.', note: isChinese ? 'TypeScript SDK 暴露。' : 'Exposed by TypeScript.' },
+	{ group: group.layout, method: 'bold(enable)', command: 'SETBOLD 1|0', params: isChinese ? 'enable: 是否加粗。' : 'enable: bold on/off.', purpose: isChinese ? '设置加粗。' : 'Sets bold style.' },
+	{ group: group.layout, method: 'underline(enable)', command: 'UNDERLINE ON|OFF', params: isChinese ? 'enable: 是否下划线。' : 'enable: underline on/off.', purpose: isChinese ? '设置下划线。' : 'Sets underline style.' },
+	{ group: group.layout, method: 'waterMark(value) / watermark(value)', command: 'WM {value} / WAT {value}', params: isChinese ? 'value: 水印强度或参数。' : 'value: watermark value.', purpose: isChinese ? '设置水印。' : 'Sets watermark.', note: isChinese ? 'Java 使用 WM，TypeScript 使用 WAT。' : 'Java uses WM; TypeScript uses WAT.' },
+	{ group: group.layout, method: 'line(...)', command: 'LINE ... / LPLINE ... / L ... / LP ...', params: isChinese ? '起止点、线宽、是否虚线。' : 'Start/end points, width, dashed flag.', purpose: isChinese ? '绘制直线。' : 'Draws a line.', note: isChinese ? '不同 SDK 使用长短前缀。' : 'SDKs use long or short prefixes.' },
+	{ group: group.layout, method: 'box(...)', command: 'BOX {x1} {y1} {x2} {y2} {width}', params: isChinese ? '矩形范围和线宽。' : 'Box bounds and line width.', purpose: isChinese ? '绘制矩形。' : 'Draws a box.' },
+	{ group: group.layout, method: 'inverse(...) / inverseLine(...)', command: 'INVERSE-LINE {x1} {y1} {x2} {y2} {height}', params: isChinese ? '反显区域。' : 'Inverse area.', purpose: isChinese ? '绘制反显区域。' : 'Draws inverse area.' },
+	{ group: group.layout, method: 'barcode(...)', command: '{rotation} {type} {width} {ratio} {height} {x} {y} {value}', params: isChinese ? '条码类型、宽度、比例、高度、坐标、内容。' : 'Barcode type, width, ratio, height, position, value.', purpose: isChinese ? '打印一维条码。' : 'Prints a 1D barcode.' },
+	{ group: group.layout, method: 'qrcode(...)', command: 'SETQRVER ... + QR ... + {level}A,{content} + ENDQR', params: isChinese ? '坐标、内容、宽度、纠错等级、旋转。' : 'Position, content, width, level, rotation.', purpose: isChinese ? '打印二维码。' : 'Prints a QR code.' },
+	{ group: group.image, method: 'image(...)', command: 'CG {byteWidth} {height} {x} {y} {bitmap} / ZG {byteWidth} {height} {xByte} {y} {len} {bitmap}', params: isChinese ? '图片、坐标、阈值、反色、压缩。' : 'Image, position, threshold, reverse, compression.', purpose: isChinese ? '发送 CPCL 位图。' : 'Sends CPCL bitmap data.' },
+	{ group: group.layout, method: 'form()', command: 'FORM', params: '-', purpose: isChinese ? '结束页面内容并准备打印。' : 'Finalizes page content.' },
+	{ group: group.layout, method: 'print(mode)', command: 'PRINT / POPRINT', params: isChinese ? 'mode: 普通或横向。' : 'mode: normal or horizontal.', purpose: isChinese ? '触发打印。' : 'Starts printing.' },
+	{ group: group.status, method: 'status()', command: '! U1 STATUS / 10 04 05', params: '-', purpose: isChinese ? '查询状态。' : 'Queries status.', note: isChinese ? 'Java 输出文本状态查询；TypeScript 当前输出实时状态 bytes。' : 'Java emits text status query; TypeScript currently emits realtime status bytes.' },
+	{ group: group.status, method: 'realtimeStatus()', command: '10 04 05', params: '-', purpose: isChinese ? '查询实时状态。' : 'Queries realtime status.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.device, method: 'querySerialNumber()', command: '10 FF EF F2', params: '-', purpose: isChinese ? '二进制查询序列号。' : 'Binary serial number query.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.device, method: 'sn()', command: '! U1 SN', params: '-', purpose: isChinese ? '文本查询序列号。' : 'Text serial number query.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.device, method: 'queryModel()', command: '10 FF EF F0', params: '-', purpose: isChinese ? '二进制查询型号。' : 'Binary model query.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.device, method: 'model()', command: '! U1 MODEL', params: '-', purpose: isChinese ? '文本查询型号。' : 'Text model query.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.device, method: 'queryVersion()', command: '10 FF EF F1', params: '-', purpose: isChinese ? '二进制查询版本。' : 'Binary version query.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.device, method: 'version()', command: '! U1 VERSION', params: '-', purpose: isChinese ? '文本查询版本。' : 'Text version query.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.status, method: 'queryBatteryLevel() / batteryVolume()', command: '10 FF EF F3', params: '-', purpose: isChinese ? '查询电量。' : 'Queries battery level.', note: isChinese ? 'Java SDK 暴露。' : 'Exposed by Java.' },
+	{ group: group.composite, method: 'feed()', command: '! 0 200 200 0 1 + PAGE-WIDTH 576 + GAP-SENSE + FORM + PRINT', params: '-', purpose: isChinese ? '组合走纸流程。' : 'Composite feed flow.' },
+	{ group: group.composite, method: 'raw(...)', command: isChinese ? '调用方提供的 CPCL 文本。' : 'Caller-provided CPCL text.', params: isChinese ? 'template/args。' : 'template/args.', purpose: isChinese ? '发送未封装的 CPCL 指令。' : 'Sends an unwrapped CPCL command.' },
+];
+
+const protocolData: Record<Exclude<Protocol, 'overview'>, Partial<Record<Family, CommandRow[]>>> = {
+	esc: { boxliy: escBoxliy, aryten: escAryten, lin8inch: escLin8inch },
+	tspl: { boxliy: tsplBoxliy, aryten: [{ group: group.composite, method: 'TsplAryten', command: copy.inheritBoxliy, params: '-', purpose: isChinese ? '继承 TSPL Boxliy 的全部公开命令。' : 'Inherits all public TSPL Boxliy commands.' }], lin8inch: tsplLin8inch },
+	cpcl: { boxliy: cpclBoxliy, aryten: [{ group: group.composite, method: 'CpclAryten', command: copy.inheritBoxliy, params: '-', purpose: isChinese ? '继承 CPCL Boxliy 的全部公开命令。' : 'Inherits all public CPCL Boxliy commands.' }] },
+};
+
+const overviewRows = [
+	{ protocol: 'ESC', family: 'Boxliy', builder: 'EscBoxliy', coverage: isChinese ? '小票/连续纸、走纸、图片、纸张设置、设备查询。' : 'Receipt/continuous paper, feed, images, media settings, device queries.' },
+	{ protocol: 'ESC', family: 'Aryten', builder: 'EscAryten', coverage: isChinese ? '继承 Boxliy，增加 Q3 纸张类型设置和查询。' : 'Inherits Boxliy and adds Q3 paper type set/query.' },
+	{ protocol: 'ESC', family: 'Lin8inch', builder: 'EscLin8inch', coverage: isChinese ? '继承 Boxliy，增加 8 寸电量、介质、浓度、灰度、配网等扩展。' : 'Inherits Boxliy and adds 8-inch battery, media, density, grayscale, provisioning extensions.' },
+	{ protocol: 'TSPL', family: 'Boxliy', builder: 'TsplBoxliy', coverage: isChinese ? '标签尺寸、坐标、文字、条码、二维码、图形、图片、状态查询。' : 'Label size, coordinates, text, barcodes, QR, graphics, images, status queries.' },
+	{ protocol: 'TSPL', family: 'Aryten', builder: 'TsplAryten', coverage: isChinese ? '继承 Boxliy TSPL。' : 'Inherits Boxliy TSPL.' },
+	{ protocol: 'TSPL', family: 'Lin8inch', builder: 'TsplLin8inch', coverage: isChinese ? '继承 Boxliy，增加自动状态、介质、色带、出纸、设备信息扩展。' : 'Inherits Boxliy and adds status, media, ribbon, presentation, device-info extensions.' },
+	{ protocol: 'CPCL', family: 'Boxliy', builder: 'CpclBoxliy', coverage: isChinese ? '页式标签、文字、线框、反显、条码、二维码、位图、状态查询。' : 'Page labels, text, lines, inverse areas, barcodes, QR, bitmap, status queries.' },
+	{ protocol: 'CPCL', family: 'Aryten', builder: 'CpclAryten', coverage: isChinese ? '继承 Boxliy CPCL。' : 'Inherits Boxliy CPCL.' },
+	{ protocol: 'CPCL', family: 'Lin8inch', builder: '-', coverage: copy.noCpclLin8inch },
+];
+
+const rows = protocol !== 'overview' && family ? protocolData[protocol]?.[family] ?? [] : [];
+---
+
+{protocol === 'overview' ? (
+	<section>
+		<h2>{copy.overviewTitle}</h2>
+		<p>{copy.overviewText}</p>
+		<table>
+			<thead>
+				<tr>
+					<th>{copy.protocol}</th>
+					<th>{copy.family}</th>
+					<th>{copy.builder}</th>
+					<th>{copy.coverage}</th>
+				</tr>
+			</thead>
+			<tbody>
+				{overviewRows.map((row) => (
+					<tr>
+						<td>{row.protocol}</td>
+						<td>{row.family}</td>
+						<td><code>{row.builder}</code></td>
+						<td>{row.coverage}</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+		<p>{copy.firmwareNote}</p>
+	</section>
+) : family ? (
+	<section>
+		<h2>{familyNames[family]} {copy.commandTitle}</h2>
+		<p>{copy.firmwareNote}</p>
+		<table>
+			<thead>
+				<tr>
+					<th>{copy.method}</th>
+					<th>{copy.command}</th>
+					<th>{copy.params}</th>
+					<th>{copy.purpose}</th>
+					<th>{copy.note}</th>
+				</tr>
+			</thead>
+			<tbody>
+				{rows.map((row) => (
+					<tr>
+						<td><code>{row.method}</code><br /><small>{row.group}</small></td>
+						<td><code>{row.command}</code></td>
+						<td>{row.params}</td>
+						<td>{row.purpose}</td>
+						<td>{row.note ?? '-'}</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+	</section>
+) : null}

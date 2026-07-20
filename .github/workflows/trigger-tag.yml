@@ -1,0 +1,19 @@
+name: "Trigger Tag"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  trigger:
+    name: Trigger
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: repotea-workspace/kangumi/github-actions/dyn-actions@main
+        name: dyn-actions
+        with:
+          owner: repotea-workflow
+          ssh_key: ${{ secrets.GH_SSH_PRIVATE_KEY_0XFE10 }}

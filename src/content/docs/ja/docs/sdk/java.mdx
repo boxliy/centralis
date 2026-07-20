@@ -1,0 +1,139 @@
+---
+title: Java SDK
+description: Java、Android、ネットワーク印刷、Bluetooth 印刷向けの NIB SDK 導入説明。
+sidebar:
+  order: 4
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Java SDK は Android アプリ、JVM ツール、ネットワークプリンター、クラシック Bluetooth 接続に適しています。導入時はまず実際の接続を `Device` にラップし、その後でテンプレートに `Script` を構築させるか、書き込みパイプラインから直接バイト列を送ります。
+
+## Maven モジュール
+
+Maven group は `com.boxliy.nib` です。
+
+| モジュール | 用途 |
+| --- | --- |
+| `nib` | 標準集約版。プロダクト統合に適しています。 |
+| `nib-core` | `Device`、`Script`、`WritePipeline`、受信ソース、クエリ分配。 |
+| `nib-esc-boxliy`、`nib-tspl-boxliy`、`nib-cpcl-boxliy` | Boxliy 方言ビルダーとレスポンス parser。 |
+| `nib-esc`、`nib-tspl`、`nib-cpcl` | Aryten 互換方言。 |
+| `nib-esc-lin8inch`、`nib-tspl-lin8inch` | Lin8inch 方言。 |
+| `nib-network` | TCP/IP ネットワークプリンター接続。 |
+| `nib-bluetooth` | Java クラシック Bluetooth 抽象。 |
+| Android classic アダプター | リポジトリには Android クラシック Bluetooth アダプターのソースがあります。独立した配布モジュールかどうかは、実際の配布バージョンに従ってください。 |
+
+ソース内では Java BLE モジュールを確認できていません。Android BLE を導入する必要がある場合は、配布バージョンまたはプロジェクトのアダプター層に従って確認し、クラシック Bluetooth モジュールから推測しないでください。
+
+## Core オブジェクト
+
+`Device` は最小デバイス契約です。
+
+```java
+public interface Device {
+  String name();
+  boolean connected();
+  void write(byte[] data) throws IOException;
+  byte[] read(int timeoutMs) throws IOException;
+  void close() throws IOException;
+}
+```
+
+`Script` は構築済みバイト列を保持し、`binary()`、`hex()`、`base64()`、`string()`、`length()` を提供します。`WritePipeline` は分割書き込みを担当し、`WriteOptions` は `ChunkPolicy`、`WriteMode`、キャンセル、タイムアウト、backpressure を設定し、`WriteResult` を返します。
+
+デフォルト分割サイズは `NibDefaults.CHUNK_SIZE` から来ており、現在は `1024` バイトです。
+
+## 初回印刷
+
+Java の `EscBoxliy` には `text()` メソッドがありません。通常のテキストには `raw(...)` を使ってください。
+
+```java
+import com.boxliy.nib.core.Device;
+import com.boxliy.nib.esc.EscBoxliy;
+
+Device device = Device.none();
+
+EscBoxliy.of(device)
+    .reset()
+    .raw("NIB SDK\r\n")
+    .feed(2)
+    .write();
+```
+
+`Device.none()` はテスト用のスクリプト生成に適しており、実プリンターへは接続しません。実プロジェクトでは、ネットワーク、クラシック Bluetooth、または Android classic 接続から得られた `Device` を渡します。
+
+先にスクリプトを構築してから書き込む場合は次のようにします。
+
+```java
+import com.boxliy.nib.core.WriteOptions;
+import com.boxliy.nib.core.WritePipeline;
+import com.boxliy.nib.core.WriteResult;
+import com.boxliy.nib.tspl.TsplAryten;
+
+byte[] data = TsplAryten.of()
+    .size(40, 30)
+    .cls()
+    .text(20, 20, "NIB SDK")
+    .print(1)
+    .build()
+    .binary();
+
+WriteResult result = WritePipeline.write(
+    device,
+    data,
+    WriteOptions.defaults(),
+    null
+);
+```
+
+## ネットワーク印刷
+
+`nib-network` は `Network.connect(...)` を提供します。
+
+```java
+import com.boxliy.nib.core.Device;
+import com.boxliy.nib.network.Network;
+
+Device device = Network.connect("192.168.1.50", 9100);
+```
+
+デフォルト接続タイムアウトは `10000` ms です。`Network.connect(host, port, timeoutMs)` も呼び出せます。ネットワーク印刷前に、host、port、タイムアウト、リトライ、ログ戦略を確認してください。ログには endpoint とバイト長を記録できますが、機密性のある印刷内容は記録しないでください。
+
+## Android とクラシック Bluetooth
+
+Java リポジトリでは `nib-bluetooth` と Android classic アダプターのソースが確認されています。Android classic 導入では通常、次が必要です。
+
+1. Android バージョンに応じて Bluetooth 権限をリクエストします。
+2. スキャンするか、ペアリング済みデバイスを選択します。
+3. クラシック Bluetooth socket を確立します。
+4. `Device` にラップします。
+5. 方言ビルダーで `Script` を生成します。
+6. ビルダーの `write()` または `WritePipeline.write(...)` で送信します。
+7. ページ破棄またはセッション終了時に接続を閉じます。
+
+権限、ライフサイクル、再接続ロジックを印刷テンプレートに書き込まないでください。
+
+## 受信、クエリ、解析
+
+core は `ReceiveSource`、`PollingReceiveSource`、`CallbackReceiveSource`、`ReceiveListener`、`QueryDispatcher`、`PendingQuery`、`ResponseMatcher` を提供します。
+
+Boxliy 方言 parser 名は次のとおりです。
+
+| 方言 | parser |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+ステータス、電池残量、型番、シリアル番号などのクエリは、すべてセッション層で一元的に処理し、デバイスファームウェアに合わせて妥当なタイムアウトを設定してください。
+
+<SdkApiReference sdk="java" locale="ja" />
+
+## 実践上のおすすめ
+
+- まず機種が対応する方言を確認してから、`EscBoxliy`、`TsplBoxliy`、`CpclBoxliy`、または Aryten/Lin8inch ビルダーを選びます。
+- Android classic と JVM classic では接続方式が異なります。テンプレート層がプラットフォームクラスに依存しないようにしてください。
+- 大きな画像と連続印刷では、実デバイスで分割サイズを検証する必要があります。
+- 難読化時は、配布パッケージが保持を要求する公開 SDK API を残してください。

@@ -1,0 +1,60 @@
+---
+title: Error Handling
+description: Common SDK integration error boundaries and handling approaches.
+sidebar:
+  order: 8
+---
+
+The goal of error handling is not to swallow exceptions, but to identify which layer failed. Once the layer is clear, troubleshooting is much faster: connection issues should not be fixed by changing templates, unsupported commands should not be retried, and paper-out is not a BLE MTU problem.
+
+## Error categories
+
+| Type | Common causes | Handling direction |
+| --- | --- | --- |
+| Connection error | Bluetooth permission disabled, device not paired, service/characteristic UUID mismatch, network unreachable, connection timeout. | Return to the connection flow and check permissions, device selection, UUIDs, addresses, and platform state. |
+| Write error | Connection interrupted, platform write API returns failure, chunk too large, write with/without response mode mismatch. | Reduce chunk size, confirm write mode, and record which chunk failed. |
+| Flow-control error | BLE credits do not arrive, MTU/credit notify format mismatch, credit timeout, incorrect use of `bypass-write`. | Confirm whether `lane-credit` or `signal-credit` is required, and check whether notify is subscribed and routed to flow control. |
+| Query error | pending query timeout, matcher mismatch, receive source not started, device does not support the query. | Check query command, timeout, notify/read source, and dialect parser. |
+| Command error | Device does not support the current ESC, TSPL, or CPCL command, or the wrong dialect is used. | Switch to the command set supported by the device and reduce unsupported extension commands. |
+| Content error | Paper width mismatch, image too wide, incompatible encoding, label coordinates outside the page, payload too large. | Return to the template and image processing layer; confirm width, encoding, coordinates, and final byte size. |
+
+## Beginner troubleshooting order
+
+Use this order to avoid getting stuck in the wrong layer:
+
+1. Confirm the connection first: whether the device is truly connected, and whether permissions, UUIDs, address, and system Bluetooth state are correct.
+2. Send minimal content: print only a short text line or a simple label to confirm basic writes.
+3. Check chunking and BLE: if small content works but large content fails, inspect chunk size, MTU, write mode, and credits.
+4. Check status queries: if printing works but status does not, inspect receive source, notify/read, pending query timeout, and parser.
+5. Check template content last: if only a specific template fails, inspect paper width, image width, encoding, barcode/QR parameters, and command support.
+
+## What to log
+
+Logs should locate the stage without recording sensitive print content. Recommended logging:
+
+| Safe to record | Avoid recording |
+| --- | --- |
+| SDK language and version, platform, transport method. | Receipt body, recipient, phone number, address, order details, and similar sensitive content. |
+| Device name or desensitized device ID, service/characteristic UUIDs. | Complete business payloads or user data that has not been desensitized. |
+| Command family, total byte length, chunk size, chunk index, write mode. | Raw bytes that can reconstruct print content. |
+| MTU, payload MTU, credit strategy, credit timeout, fallback mode. | Long-term detailed binary dumps in production. |
+| Query type, timeout, whether raw response was received, parser result type. | Parser text fields that contain customer information. |
+
+When raw bytes are needed during debugging, prefer recording only length, the first few bytes, a hash, or a desensitized hex fragment, and make sure it does not enter long-term production logs.
+
+## Symptom table
+
+| Symptom | Possible layer | Next check |
+| --- | --- | --- |
+| Device cannot be scanned | Connection | Permissions, Bluetooth switch, whether the device is advertising, platform discovery filter. |
+| Can scan but cannot connect | Connection | Whether the address/device object is stale, whether service UUID matches, whether connection timeout is too short. |
+| Connection succeeds but nothing prints | Write / command | Whether the write characteristic is correct, whether minimal text can print, whether the command family is supported. |
+| Prints halfway or large images fail | Write / flow control / content | chunk size, BLE MTU, credits, image width, and total payload size. |
+| Stalls after enabling credits | Flow control | Whether credit notify is subscribed, whether notifications enter `lane-credit` or `signal-credit`, and whether timeout is reasonable. |
+| `bypass-write` prints, but `fail` mode times out | Flow control | The device may not need credits, or the credit characteristic/notification format is configured incorrectly. |
+| Status query always times out | Query / receive | Whether receive source is started, whether notify/read has data, whether matcher and query command match. |
+| Response is received but result is unknown | Query / parser | Raw bytes arrived; check dialect, query type, and firmware response format. |
+| Receipt text is garbled | Content / command | Character encoding, codepage, font, and device language settings. |
+| Writes continue after paper-out | Status / product logic | Whether the device supports paper-out status, and whether the application reads and handles status before/during writes. |
+
+During troubleshooting, preserve the original "which layer failed" error as much as possible, then convert it into user-facing guidance such as "check whether the printer is out of paper" or "reconnect the printer".

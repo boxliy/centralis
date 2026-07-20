@@ -1,0 +1,60 @@
+---
+title: 錯誤處理
+description: SDK 接入時常見錯誤的邊界和處理方式。
+sidebar:
+  order: 8
+---
+
+錯誤處理的目標不是把異常吞掉，而是判斷它發生在哪一層。層級判斷清楚後，排查會快很多：連線問題不要改範本，指令不支援不要靠重試，缺紙也不是 BLE MTU 的問題。
+
+## 錯誤分類
+
+| 類型 | 常見原因 | 處理方向 |
+| --- | --- | --- |
+| 連線錯誤 | 藍牙權限未開、裝置未配對、service/characteristic UUID 不匹配、網路不可達、連線逾時。 | 回到連線流程，檢查權限、裝置選擇、UUID、地址和平台狀態。 |
+| 寫入錯誤 | 連線中斷、平台 write API 回傳失敗、分片過大、write with/without response 模式不匹配。 | 縮小分片，確認寫入模式，記錄失敗發生在第幾個 chunk。 |
+| 流控錯誤 | BLE credit 沒有到達、MTU/credit notify 格式不匹配、credit 逾時、錯誤使用 `bypass-write`。 | 確認是否需要 `lane-credit` 或 `signal-credit`，檢查 notify 是否被訂閱並路由到 flow control。 |
+| 查詢錯誤 | pending query 逾時、matcher 不匹配、receive source 未啟動、裝置不支援該查詢。 | 檢查查詢指令、timeout、notify/read 來源和方言 parser。 |
+| 指令錯誤 | 裝置不支援目前 ESC、TSPL 或 CPCL 指令，或使用了錯誤方言。 | 切換到裝置支援的指令集，減少裝置不支援的擴展命令。 |
+| 內容錯誤 | 紙寬不匹配、圖片過寬、編碼不相容、標籤座標超出頁面、payload 過大。 | 回到範本和圖片處理層，確認寬度、編碼、座標和最終位元組大小。 |
+
+## 新手排查順序
+
+按這個順序排查，通常能避免在錯誤層裡打轉：
+
+1. 先確認連線：裝置是否真的 connected，權限、UUID、地址和系統藍牙狀態是否正確。
+2. 再發最小內容：只列印一小段文字或一條簡單標籤，確認基礎寫入可用。
+3. 再看分片和 BLE：如果小內容正常、大內容失敗，檢查 chunk size、MTU、write mode 和 credit。
+4. 再看狀態查詢：如果列印可用但狀態讀不到，檢查 receive source、notify/read、pending query timeout 和 parser。
+5. 最後看範本內容：如果只有特定範本失敗，檢查紙寬、圖片寬度、編碼、條碼/QR Code 參數和指令支援。
+
+## 日誌怎麼記
+
+日誌要能定位階段，但不要記錄敏感列印內容。建議記錄：
+
+| 可以記錄 | 避免記錄 |
+| --- | --- |
+| SDK 語言和版本、平台、傳輸方式。 | 收據正文、收件人、手機號碼、地址、訂單明細等敏感內容。 |
+| 裝置名稱或脫敏後的裝置 ID、service/characteristic UUID。 | 完整業務 payload 或未脫敏的使用者資料。 |
+| 指令族、總位元組數、chunk size、chunk index、write mode。 | 可還原列印內容的 raw bytes。 |
+| MTU、payload MTU、credit 策略、credit timeout、fallback mode。 | 正式環境長期開啟的超詳細二進位制 dump。 |
+| 查詢類型、timeout、是否收到 raw response、parser 結果類型。 | 包含客戶資訊的 parser 文字欄位。 |
+
+除錯階段需要看 raw bytes 時，優先只記錄長度、前幾個位元組、hash 或脫敏後的 hex 片段，並確保不會進入長期生產日誌。
+
+## 症狀對照表
+
+| 症狀 | 可能層級 | 下一步檢查 |
+| --- | --- | --- |
+| 掃描不到裝置 | 連線 | 權限、藍牙開關、裝置是否廣播、平台 discovery filter。 |
+| 能掃描但連線失敗 | 連線 | 地址/裝置物件是否過期，service UUID 是否匹配，連線逾時是否過短。 |
+| 連線成功但完全不列印 | 寫入 / 指令 | 寫入 characteristic 是否正確，最小文字是否能列印，指令族是否支援。 |
+| 列印一半或大圖失敗 | 寫入 / 流控 / 內容 | chunk size、BLE MTU、credit、圖片寬度和 payload 總大小。 |
+| 開啟 credit 後卡住 | 流控 | credit notify 是否訂閱成功，通知是否進入 `lane-credit` 或 `signal-credit`，timeout 是否合理。 |
+| `bypass-write` 能列印，`fail` 模式逾時 | 流控 | 裝置可能不需要 credit，或 credit 特徵值/通知格式配置錯誤。 |
+| 查詢狀態一直逾時 | 查詢 / 接收 | receive source 是否啟動，notify/read 是否有資料，matcher 和查詢指令是否匹配。 |
+| 收到 response 但結果是 unknown | 查詢 / parser | raw bytes 已到達，檢查方言、查詢類型和韌體回包格式。 |
+| 收據亂碼 | 內容 / 指令 | 字元編碼、codepage、字型和裝置語言設定。 |
+| 缺紙仍繼續寫入 | 狀態 / 產品邏輯 | 裝置是否支援缺紙狀態，應用程式是否在寫入前/寫入中讀取並處理狀態。 |
+
+排查時盡量保留“發生在哪一層”的原始錯誤資訊，再把它轉換成使用者能理解的提示，例如“請檢查印表機是否缺紙”或“請重新連線印表機”。

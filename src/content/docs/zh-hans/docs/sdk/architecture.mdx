@@ -1,0 +1,57 @@
+---
+title: SDK 架构
+description: NIB 如何拆分 core、设备包、指令族和语言交付包。
+sidebar:
+  order: 4
+---
+
+import ExcalidrawEmbed from '/src/components/docs/ExcalidrawEmbed.astro';
+
+NIB 不是一个固定指令文档，而是一套分层 SDK。你可以从标准版开始接入，也可以在需要控制包体积、平台范围或开放能力时，只选 core、device、dialect 中的部分包。
+
+<ExcalidrawEmbed title="NIB Printer SDK Architecture" />
+
+## 四层结构
+
+| 层级 | 责任 |
+| --- | --- |
+| Core | 提供脚本/字节容器、connected device 合约、分片写入、接收源、pending query 和响应分发。它不负责扫描设备，也不决定机器支持哪种指令。 |
+| Device | 把运行环境的 BLE、经典蓝牙、WebUSB、网络、微信、UniApp、Taro、Android Bluetooth、Apple CoreBluetooth 等能力适配成 connected device。 |
+| Dialect | 面向打印机 Family 和指令族的构建器，例如 Boxliy TSPL、Aryten ESC、Lin8inch TSPL。它负责生成机器能理解的字节。 |
+| Edition | 面向语言的交付包，把常用 core、device、dialect 组合成更方便安装和导入的版本。 |
+
+这四层对应实际代码边界：模板选 dialect，连接选 device，写入和状态编排用 core，业务项目通常安装 edition 或按需安装子包。
+
+## Family 与指令族
+
+| Family | 可用指令构建器 | 说明 |
+| --- | --- | --- |
+| Boxliy | ESC、TSPL、CPCL | 启枢 / Boxliy 热敏打印产品的主要指令族。 |
+| Aryten | ESC、TSPL、CPCL | 兼容指令族，继承 Boxliy 的主要表面，只在需要时增加 Family 扩展。 |
+| Lin8inch | ESC、TSPL | 8 寸扩展指令族，包含介质、浓度、状态、设备设置等扩展命令。 |
+
+先确定机器属于哪个 Family，再选择机器支持的指令族。部分机器只支持特定指令集；SDK 不会因为你导入了某个 builder 就让机器获得对应能力。
+
+ESC、TSPL、CPCL 是三类不同的打印机指令语言：
+
+| 指令族 | 常见用途 | 接入重点 |
+| --- | --- | --- |
+| ESC | 小票、热敏纸、行式打印。 | 关注文本、走纸、切纸、基础状态。 |
+| TSPL | 标签、条码、二维码、固定版面。 | 关注纸张尺寸、gap/black mark、坐标和 `PRINT`。 |
+| CPCL | 移动打印、标签和票据场景。 | 关注坐标、表单边界和设备实际支持的命令子集。 |
+
+## 公共模型
+
+不同语言保持同一套理解方式：
+
+1. 用 dialect builder 构建打印脚本。
+2. 通过 connected device 写入字节。
+3. 写入时由 core 或设备包处理分片、写入模式、超时和进度。
+4. 机器支持时，通过 core 的 receive/query 工具读取状态。
+5. 传输逻辑不要写进打印模板。
+
+## 跨语言一致性
+
+TypeScript、Dart、Java、Objective-C 和 Swift 的类型名不完全相同，但概念保持一致：builder 生成字节，device 写入字节，receive source 或 query dispatcher 处理回包。迁移语言时优先迁移这些概念，而不是逐行寻找同名方法。
+
+SDK 方法名尽量按意图命名，但部分公开方法会保留历史指令词，方便和机器手册、固件协议对照。图片和栅格打印相关能力基于 SDK 的 image/raster 基础能力；普通文本和标签接入不需要先理解图片处理。

@@ -1,0 +1,65 @@
+---
+title: クイックスタート
+description: 最短手順で SDK 印刷を 1 回完了する。
+sidebar:
+  order: 2
+---
+
+クイックスタートで行うことは 1 つだけです。最小の印刷スクリプトを生成し、接続済みのデバイスオブジェクトへ書き込みます。まずプリンターにテキストを 1 行印刷させ、その後で画像、QR コード、ラベルテンプレート、ステータス読み取りを組み込みます。
+
+## 最小フロー
+
+1. プリンターの Family と命令ファミリーを確認します。例: Boxliy + TSPL。
+2. 対象言語で対応する配布パッケージをインストールします。
+3. プラットフォームの接続層から connected device を取得します。
+4. 命令ビルダーでスクリプト/バイト列を生成します。
+5. 書き込みパイプラインでバイト列をデバイスへ書き込みます。
+
+## connected device とは
+
+サンプル内の `device` は、SDK が自動スキャンしたデバイスでも、特定プラットフォームの生の Bluetooth オブジェクトでもありません。接続層ですでに適合済みの connected device であるべきです。
+
+```text
+プラットフォームのスキャン/認可/接続 -> transport adapter -> connected device -> writeTo(...)
+```
+
+WeChat、UniApp、Taro、WebUSB、Android Bluetooth、iOS BLE は、それぞれ独自の接続方式を持てます。ただし印刷テンプレートへ入る前に、できるだけ同じ connected device 契約へ集約してください。
+
+## TypeScript TSPL サンプル
+
+次のサンプルは TSPL に対応した Boxliy プリンター向けです。別のプリンターでは、対応する Family と命令ファミリーのビルダーに置き換えてください。
+
+```ts
+import { TsplBoxliy, writeTo } from '@boxliy/nib'
+
+const bytes = new TsplBoxliy()
+  .size(60, 40)
+  .gap(2)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print(1)
+  .bytes()
+
+await writeTo(device, bytes)
+```
+
+TypeScript の具体的なデバイスパッケージがまだ決まっていない場合は、まずフローを疑似コードとして書いておけます。
+
+```ts
+const device = await connectPrinterFromYourPlatform()
+const bytes = buildReceiptOrLabel()
+await writeTo(device, bytes)
+```
+
+ここで重要なのは境界です。`connectPrinterFromYourPlatform()` は権限、スキャン、接続、characteristic を扱います。`buildReceiptOrLabel()` は印刷バイト列だけを生成します。
+
+## 初回導入のおすすめ
+
+| 手順 | おすすめ |
+| --- | --- |
+| まずテキストを印刷する | 画像、バーコード、ラベルテンプレートよりも接続問題を切り分けやすくなります。 |
+| まず 1 種類のプリンターに固定する | 最初から複数の機種や複数の命令セットを混在させないでください。 |
+| 書き込みバイト長を記録する | スクリプト生成の失敗か、転送層の書き込み失敗かを判断しやすくなります。 |
+| デバイスログを残す | 接続、分割、タイムアウト、ステータス応答を追跡できるようにします。 |
+
+最小のテキスト印刷がまだ通っていない場合は、画像、QR コード、複雑なラベルテンプレートを組み込む前に、そこを先に解決してください。

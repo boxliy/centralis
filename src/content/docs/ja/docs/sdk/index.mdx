@@ -1,0 +1,58 @@
+---
+title: プリンター SDK
+description: アプリ、ドライバー、デバイス連携のための多言語プリンター SDK 導入ガイド。
+sidebar:
+  order: 1
+---
+
+プリンター SDK は、アプリから NIB の印刷機能へ接続する入口です。SDK がプリンターの能力を「推測」するのではなく、すでに確認済みのデバイス、命令セット、接続方式を、言語をまたいで一貫した印刷フローに整理します。
+
+まず、このメンタルモデルを押さえてください。
+
+```text
+命令ビルダー -> スクリプト/バイト -> connected device -> 分割/フロー制御付き書き込み -> 任意のステータス読み取り
+```
+
+つまり、テンプレートコードは ESC、TSPL、CPCL のバイト列を生成するだけです。接続コードは、接続済みのデバイスオブジェクトを取得します。書き込みパイプラインは、そのバイト列を現在の転送方式に合わせてデバイスへ書き込みます。ステータス読み取りは任意の機能であり、デバイス、命令セット、接続層のすべてが対応している場合にだけ組み込みます。
+
+## 読む順序
+
+| 目的 | まず読むもの |
+| --- | --- |
+| SDK を初めて導入する | [クイックスタート](./quickstart/) |
+| プロジェクトの導入情報を準備する | [導入前の確認](./prerequisites/) |
+| SDK のレイヤー構造を理解する | [SDK アーキテクチャ](./architecture/) |
+| Bluetooth、USB、ネットワーク、またはプラットフォームブリッジを扱う | [デバイス接続](./connection/) |
+| BLE の分割、credit、書き込み間隔を扱う | [書き込みとフロー制御](./flow-control/) |
+| 電池残量、用紙切れ、バージョン、またはクエリ応答を読む | [ステータス読み取り](./status/) |
+| 接続失敗、書き込み失敗、デバイス無応答を扱う | [エラー処理](./errors/) |
+
+初めて導入する場合は、この順序で読むことをおすすめします。まず [導入前の確認](./prerequisites/) で事実関係をそろえ、次に [クイックスタート](./quickstart/) でテキストを 1 行印刷し、その後 [デバイス接続](./connection/) を読んで、プラットフォームの接続を connected device に適合させます。安定して印刷できるようになってから、[書き込みとフロー制御](./flow-control/) と [ステータス読み取り](./status/) に進んでください。
+
+## 選択順序
+
+パッケージやサンプルを選ぶ前に、業務上の事実に基づいて外側から内側へ、次の 4 点を決めます。
+
+1. プリンター Family: Boxliy、Aryten、Lin8inch。
+2. 命令ファミリー: ESC、TSPL、CPCL。実機ファームウェアの対応状況を基準にします。
+3. Transport: BLE、クラシック Bluetooth、USB / WebUSB、ネットワーク、またはミニプログラム / クロスプラットフォームフレームワークのブリッジ。
+4. 言語パッケージ: TypeScript、Dart、Java、Objective-C、Swift。
+
+この順序にすると、よくある誤解を避けられます。たとえば、先に特定言語のサンプルに沿ってコードを書き終えた後で、実機がその命令ファミリーではなかった、または現在のプラットフォームではサンプルが必要とする BLE characteristic を取得できなかった、といった事態を防げます。
+
+## 言語別導入
+
+| 言語 | よく使われる実行環境 | connected device の形 | ドキュメント |
+| --- | --- | --- | --- |
+| TypeScript | Web、Node、ミニプログラム、Taro、UniApp、WebUSB | `ConnectedDevice`。`write()`、任意の `read()` / `notify()` を提供 | [TypeScript SDK](./typescript/) |
+| Dart | Flutter、モバイル、クロスプラットフォームクライアント | `ConnectedDevice<T>`。`write()`、`read()` stream、接続状態を提供 | [Dart SDK](./dart/) |
+| Java | Android、JVM ツール、ネットワークまたは Bluetooth 接続 | `Device`。`write()`、`read()`、`close()` を提供 | [Java SDK](./java/) |
+| Objective-C | 既存の iOS プロジェクト、混在言語プロジェクト | `BNDevice`。`writeData:error:`、`readWithTimeout:error:` を提供 | [Objective-C SDK](./objective-c/) |
+| Swift | iOS、macOS、CoreBluetooth | `NibDevice`。`write(_:)`、`read(maxLength:)` を提供 | [Swift SDK](./swift/) |
+
+## このセクションで扱わない内容
+
+| 内容 | 現在の場所 |
+| --- | --- |
+| ESC、TSPL、CPCL の具体的な命令 | 左側の「命令」セクション。 |
+| テキスト、バーコード、QR コード、画像などの印刷機能 | 今後、個別に整理します。 |

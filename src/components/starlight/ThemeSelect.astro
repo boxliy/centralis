@@ -1,0 +1,135 @@
+---
+const themeCopy = {
+	root: {
+		auto: 'System',
+		light: 'Light',
+		dark: 'Dark',
+		accessibleLabel: 'Select theme',
+	},
+	'zh-hans': {
+		auto: '系统',
+		light: '亮色',
+		dark: '暗色',
+		accessibleLabel: '主题切换',
+	},
+	'zh-hant': {
+		auto: '系統',
+		light: '亮色',
+		dark: '暗色',
+		accessibleLabel: '主題切換',
+	},
+	ko: {
+		auto: '시스템',
+		light: '라이트',
+		dark: '다크',
+		accessibleLabel: '테마 선택',
+	},
+	ja: {
+		auto: 'システム',
+		light: 'ライト',
+		dark: 'ダーク',
+		accessibleLabel: 'テーマ選択',
+	},
+};
+
+const currentLocale = Astro.locals.starlightRoute.locale || 'root';
+const labels = themeCopy[currentLocale as keyof typeof themeCopy] ?? themeCopy.root;
+const options = [
+	{ value: 'auto', label: labels.auto },
+	{ value: 'light', label: labels.light },
+	{ value: 'dark', label: labels.dark },
+];
+---
+
+<starlight-theme-select class="select-switch docs-select-switch theme-switch" data-docs-theme-switch>
+	<button class="select-trigger theme-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label={labels.accessibleLabel}>
+		<span data-theme-label>{labels.auto}</span>
+	</button>
+	<div class="select-menu theme-menu" role="listbox" aria-label={labels.accessibleLabel}>
+		{options.map((option) => (
+			<button class="select-option theme-option" type="button" role="option" aria-selected={String(option.value === 'auto')} data-theme-option={option.value}>
+				{option.label}
+			</button>
+		))}
+	</div>
+</starlight-theme-select>
+
+<script is:inline>
+	StarlightThemeProvider.updatePickers();
+</script>
+
+<script>
+	type Theme = 'auto' | 'dark' | 'light';
+
+	const storageKey = 'starlight-theme';
+	const themeModes: Theme[] = ['auto', 'light', 'dark'];
+
+	const parseTheme = (theme: unknown): Theme =>
+		theme === 'auto' || theme === 'dark' || theme === 'light' ? theme : 'auto';
+
+	const loadTheme = (): Theme =>
+		parseTheme(typeof localStorage !== 'undefined' && localStorage.getItem(storageKey));
+
+	function storeTheme(theme: Theme): void {
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem(storageKey, theme === 'light' || theme === 'dark' ? theme : '');
+		}
+	}
+
+	const getPreferredColorScheme = (): Theme =>
+		matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+
+	function setOpen(picker: HTMLElement, open: boolean): void {
+		picker.classList.toggle('open', open);
+		picker.querySelector('.select-trigger')?.setAttribute('aria-expanded', String(open));
+	}
+
+	function onThemeChange(picker: HTMLElement, theme: Theme, persist = true): void {
+		const resolved = theme === 'auto' ? getPreferredColorScheme() : theme;
+		StarlightThemeProvider.updatePickers(theme);
+		document.documentElement.dataset.theme = resolved;
+		picker.querySelector('[data-theme-label]')!.textContent =
+			picker.querySelector<HTMLElement>(`[data-theme-option="${theme}"]`)?.textContent?.trim() || theme;
+		picker.querySelectorAll<HTMLElement>('[data-theme-option]').forEach((option) => {
+			const selected = option.dataset.themeOption === theme;
+			option.classList.toggle('active', selected);
+			option.setAttribute('aria-selected', String(selected));
+		});
+		if (persist) storeTheme(theme);
+	}
+
+	matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+		document.querySelectorAll<HTMLElement>('starlight-theme-select').forEach((picker) => {
+			if (loadTheme() === 'auto') onThemeChange(picker, 'auto', false);
+		});
+	});
+
+	class StarlightThemeSelect extends HTMLElement {
+		constructor() {
+			super();
+			onThemeChange(this, loadTheme(), false);
+			this.querySelector('.select-trigger')?.addEventListener('click', () => {
+				setOpen(this, !this.classList.contains('open'));
+			});
+			this.querySelectorAll<HTMLElement>('[data-theme-option]').forEach((option) => {
+				option.addEventListener('click', () => {
+					onThemeChange(this, parseTheme(option.dataset.themeOption));
+					setOpen(this, false);
+				});
+			});
+			document.addEventListener('click', (event) => {
+				if (!this.contains(event.target as Node)) setOpen(this, false);
+			});
+			this.addEventListener('keydown', (event) => {
+				if (event.key === 'Escape') setOpen(this, false);
+				if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+				event.preventDefault();
+				const options = Array.from(this.querySelectorAll<HTMLElement>('[data-theme-option]'));
+				const current = options.findIndex((option) => option.classList.contains('active'));
+				const offset = event.key === 'ArrowDown' ? 1 : -1;
+				options[(current + offset + options.length) % options.length]?.focus();
+			});
+		}
+	}
+	customElements.define('starlight-theme-select', StarlightThemeSelect);
+</script>

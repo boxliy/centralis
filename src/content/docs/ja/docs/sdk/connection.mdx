@@ -1,0 +1,65 @@
+---
+title: デバイス接続
+description: SDK がプラットフォームデバイスを統一された connected device に適合させる方法。
+sidebar:
+  order: 5
+---
+
+SDK の印刷テンプレートは、プラットフォームの Bluetooth、USB、ネットワーク API を直接操作しません。接続層がスキャン、認可、接続、通知購読を担当し、プラットフォームオブジェクトを connected device にラップします。印刷層は統一された書き込み/読み取りインターフェイスだけを扱います。
+
+この境界は重要です。テンプレートコードは、「これは WeChat BLE なのか iOS CoreBluetooth なのか」を知らなくても、同じ TSPL、ESC、CPCL バイト列を生成できるべきです。
+
+## 責務の境界
+
+| レイヤー | 担当すること |
+| --- | --- |
+| プラットフォーム API | スキャン、認可、接続、切断、service/characteristic の検出、通知購読。 |
+| Transport adapter | プラットフォーム API を connected device にラップし、プラットフォームの callback、権限、生ハンドルを隠蔽します。 |
+| Session | テンプレート選択、書き込みパイプライン呼び出し、ログ記録、ステータス、タイムアウト、リトライ、エラー処理。 |
+| Template | ESC、TSPL、CPCL バイト列だけを生成し、Bluetooth 権限、socket、USB endpoint、ネットワーク再接続は扱いません。 |
+
+このように分けると、同じ印刷テンプレートを異なるランタイムで再利用できます。
+
+## connected device 契約
+
+言語によってインターフェイス名は異なりますが、表す内容は同じです。接続済みで、バイト列を書き込め、対応していれば応答も読み取れるオブジェクトです。
+
+| 言語 | コアインターフェイス | 主なメソッド |
+| --- | --- | --- |
+| TypeScript | `ConnectedDevice` | `write(data)`、`read(options)`、`notify(callback)`、`disconnect()`、`connectionState()` |
+| Dart | `ConnectedDevice<T>` | `write(data)`、`read(options)`、`disconnect()`、`connectionStateChanges()` |
+| Java | `Device` | `write(byte[])`、`read(timeoutMs)`、`close()`、`connected()` |
+| Objective-C | `BNDevice` | `writeData:error:`、`readWithTimeout:error:`、`closeWithError:` |
+| Swift | `NibDevice` | `write(_:)`、`read(maxLength:)`、`close()`、`connected` |
+
+プラットフォームに読み取り能力がない場合は、まず書き込み経路だけを実装できます。ステータス読み取りが必要になったら、read、notify、または receive source を追加します。
+
+## よくある接続タイプ
+
+| タイプ | 説明 |
+| --- | --- |
+| BLE | モバイルとミニプログラムでよく使われます。権限、service/characteristic、分割、書き込みモード、通知を扱う必要があります。 |
+| クラシック Bluetooth | Android と一部のデスクトップシーンでよく使われます。ペアリング、socket、切断復旧が重点です。 |
+| USB / WebUSB | ブラウザー、デスクトップ、ブリッジシーンに適しています。ユーザー認可と endpoint を扱う必要があります。 |
+| ネットワーク | LAN またはネットワークポートのブリッジデバイスに適しています。接続タイムアウトとリトライを扱う必要があります。 |
+
+## BLE characteristic の注意点
+
+BLE 接続が成功しても、印刷できるとは限りません。さらに次を確認する必要があります。
+
+| 項目 | 説明 |
+| --- | --- |
+| service UUID | 許可された service の中だけで印刷 characteristic を探します。 |
+| write characteristic | `write` または `writeWithoutResponse` に対応している必要があります。 |
+| read/notify characteristic | ステータス読み取りまたは credit フロー制御には、読み取り可能、通知可能、または書き込み characteristic と同一であることが必要です。 |
+| 自動選択戦略 | TypeScript BLE core は属性に基づく write/notify/read の選択に対応し、allowed write/read characteristic の指定にも対応しています。本番環境では、最終的に選択された UUID を記録することをおすすめします。 |
+| 分割サイズ | 一般的な保守値は 20 bytes です。negotiated MTU またはプラットフォームの maximum write length から計算することもできます。 |
+| credit/flow control | 一部の BLE デバイスは通知で書き込みペースを制御します。確認できるまでは、無制限に連続書き込みできると仮定しないでください。 |
+
+## 推奨構成
+
+1. `connectPrinter()` は connected device を返すことだけを担当します。
+2. `buildReceipt()` または `buildLabel()` は命令生成だけを担当します。
+3. `printJob()` は接続、書き込み、ステータス読み取り、エラー処理を担当します。
+
+ページコンポーネント内で直接命令を組み立てたり、印刷テンプレート内に Bluetooth 権限ロジックを書いたりしないでください。

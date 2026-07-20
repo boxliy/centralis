@@ -1,0 +1,71 @@
+---
+title: 狀態讀取
+description: 如何讀取裝置狀態、查詢回包和印表機資訊。
+sidebar:
+  order: 7
+---
+
+狀態讀取用於知道印表機“現在怎麼樣”：是否線上、是否缺紙、是否開蓋、是否過熱、電量是多少、版本或序列號是什麼。它和寫入列印內容是兩條路徑：寫入負責把指令發給裝置，狀態讀取負責接收裝置回傳的資料並解析。
+
+不是所有印表機都支援所有狀態。即使同樣使用 ESC、TSPL 或 CPCL，不同韌體也可能只支援其中一部分查詢，或者只在特定異常發生時主動通知。
+
+## 一次查詢怎麼走
+
+一次典型狀態查詢會經過這條鏈路：
+
+1. 應用程式寫入一條查詢指令，或等待裝置主動 notify。
+2. 平台傳輸層收到資料，交給 receive source。
+3. receive source 把原始 bytes 交給 query dispatcher。
+4. query dispatcher 用目前 pending query 的 response matcher 判斷這包資料是不是要等的回應。
+5. 匹配成功後，把 raw bytes 交給對應方言的 parser。
+6. parser 回傳 typed response，例如 status、battery、version、model、serial number、MAC 或 unknown。
+
+如果沒有 pending query，收到的資料可以作為一般通知事件處理；如果有 pending query 但 matcher 一直匹配不到，查詢會在逾時後失敗。
+
+## 接收來源
+
+NIB 的 receive source 只是“把裝置回包送進 SDK”的入口，不負責解釋業務含義。
+
+| 來源 | 說明 | 常見場景 |
+| --- | --- | --- |
+| callback / notify | 平台收到 BLE notify、系統回呼或外掛事件後主動推給 SDK。 | BLE notify、行動端藍牙外掛。 |
+| polling | SDK 循環呼叫 `read`，讀到非空資料後通知 listener。 | 網路、USB、經典藍牙或只有 read API 的裝置。 |
+| device receive source | 裝置物件自己暴露 receive source，session 直接接入。 | 平台封裝已經處理好 notify/read 的情況。 |
+
+選擇哪一種取決於平台 API 和裝置能力。BLE 通常優先 notify；沒有穩定 notify 時再考慮 polling 或顯式 read。
+
+## pending query 和逾時
+
+query dispatcher 一次只跟蹤一個 pending query。發起查詢時要提供 matcher 和 timeout：
+
+| 情況 | 結果 |
+| --- | --- |
+| matcher 回傳 typed response | 查詢完成，業務取得解析後的結果。 |
+| matcher 回傳空值 | 這包資料不是目前查詢結果，繼續等待。 |
+| matcher 拋出異常 | 目前查詢失敗。 |
+| receive source 報錯或關閉 | 目前查詢失敗。 |
+| 超過 timeout | 目前查詢失敗，後續遲到回應不會自動完成這個查詢。 |
+
+逾時不一定代表印表機壞了。它可能表示裝置不支援這個狀態、notify 沒訂閱成功、查詢指令和方言不匹配，或傳輸層沒有把回包送進 receive source。
+
+## 方言解析覆蓋
+
+NIB 目前覆蓋 ESC、TSPL、CPCL 的常見回應解析：
+
+| 方言 | 常見解析內容 |
+| --- | --- |
+| ESC | 狀態、電量、版本、型號、名稱、序列號、MAC，以及部分主動事件。 |
+| TSPL | 狀態、電量、版本、型號、名稱、序列號、MAC。 |
+| CPCL | 狀態frame、一般狀態、電量、版本、型號、名稱、序列號；不認識的 MAC 或特殊回包會保留為 unknown。 |
+
+typed response 中的 `unknown` 代表“收到了資料，但目前 parser 不認識這個格式”。這和 transport failure 不同：transport failure 是連線、read、notify 或 receive source 本身失敗，通常不會得到可解析的 raw response。
+
+## 接入建議
+
+把狀態讀取放在 print session 或 device service 裡，不要分散到 UI 元件中。接入時先確認三件事：
+
+1. 這台機器和韌體是否真的支援要讀的狀態。
+2. 查詢指令、response matcher 和 parser 是否屬於同一個方言。
+3. receive source 是否已經啟動，並且 notify/read 的資料能進入 dispatcher。
+
+使用者介面可以顯示“缺紙”“開蓋”“低電量”等結果，但日誌和排查應保留原始階段：是沒有回包、回包未知，還是連線/讀取失敗。

@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 960" role="img" aria-labelledby="title desc">
+  <title id="title">NIB Printer SDK Architecture</title>
+  <desc id="desc">Architecture flow from product app and language editions through core, command builders, transports, printer firmware, and status feedback.</desc>
+  <defs>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2563eb" />
+    </marker>
+    <marker id="arrow-cyan" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#0891b2" />
+    </marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#15803d" />
+    </marker>
+    <marker id="arrow-amber" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b45309" />
+    </marker>
+    <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#dc2626" />
+    </marker>
+    <style>
+      .title { font: 700 34px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111827; }
+      .sub { font: 18px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #4b5563; }
+      .zone-label { font: 700 20px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .box-title { font: 700 18px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111827; }
+      .box-small { font: 15px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #374151; }
+      .note { font: 17px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #7c2d12; }
+      .label { font: 14px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #374151; }
+      .panel { rx: 18; stroke-width: 2; }
+      .node { rx: 12; stroke-width: 3; }
+    </style>
+  </defs>
+  <rect width="1200" height="960" fill="#fbfdff" />
+  <path d="M0 0H1200V960H0Z" fill="url(#grid)" opacity="0" />
+  <text class="title" x="350" y="52">NIB Printer SDK Architecture</text>
+  <text class="sub" x="258" y="84">App code, language editions, core pipeline, command families, transports, and status feedback</text>
+
+  <rect class="panel" x="60" y="120" width="1080" height="112" fill="#dbeafe" stroke="#60a5fa" opacity="0.8" />
+  <text class="zone-label" x="86" y="150" fill="#2563eb">Application Layer</text>
+  <rect class="node" x="145" y="165" width="220" height="54" fill="#bfdbfe" stroke="#3b82f6" />
+  <text class="box-title" x="210" y="188">Product App</text>
+  <text class="box-small" x="201" y="209">UI + Print Job</text>
+  <rect class="node" x="490" y="165" width="220" height="54" fill="#fef3c7" stroke="#f59e0b" />
+  <text class="box-title" x="531" y="188">Print Template</text>
+  <text class="box-small" x="550" y="209">receipt / label</text>
+  <rect class="node" x="835" y="165" width="220" height="54" fill="#ccfbf1" stroke="#06b6d4" />
+  <text class="box-title" x="882" y="188">Print Session</text>
+  <text class="box-small" x="870" y="209">connect + write + read</text>
+  <line x1="365" y1="192" x2="490" y2="192" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow-blue)" />
+  <text class="label" x="413" y="181">build</text>
+  <line x1="710" y1="192" x2="835" y2="192" stroke="#0891b2" stroke-width="3" marker-end="url(#arrow-cyan)" />
+  <text class="label" x="748" y="181">run job</text>
+
+  <rect class="panel" x="60" y="270" width="1080" height="112" fill="#ede9fe" stroke="#8b5cf6" opacity="0.82" />
+  <text class="zone-label" x="86" y="302" fill="#6d28d9">Language Editions</text>
+  <rect class="node" x="130" y="324" width="150" height="42" fill="#ddd6fe" stroke="#8b5cf6" />
+  <text class="box-small" x="160" y="351">Dart / Flutter</text>
+  <rect class="node" x="310" y="324" width="150" height="42" fill="#ddd6fe" stroke="#8b5cf6" />
+  <text class="box-small" x="345" y="351">TypeScript</text>
+  <rect class="node" x="490" y="324" width="150" height="42" fill="#ddd6fe" stroke="#8b5cf6" />
+  <text class="box-small" x="525" y="351">Java / Android</text>
+  <rect class="node" x="670" y="324" width="150" height="42" fill="#ddd6fe" stroke="#8b5cf6" />
+  <text class="box-small" x="700" y="351">Objective-C</text>
+  <rect class="node" x="850" y="324" width="150" height="42" fill="#ddd6fe" stroke="#8b5cf6" />
+  <text class="box-small" x="902" y="351">Swift</text>
+  <line x1="945" y1="219" x2="945" y2="324" stroke="#7c3aed" stroke-width="3" marker-end="url(#arrow-amber)" />
+  <text class="label" x="957" y="274">uses edition</text>
+
+  <rect class="panel" x="60" y="425" width="1080" height="222" fill="#dcfce7" stroke="#22c55e" opacity="0.82" />
+  <text class="zone-label" x="86" y="457" fill="#15803d">Core + Command Construction</text>
+  <rect class="node" x="110" y="495" width="230" height="84" fill="#bbf7d0" stroke="#22c55e" />
+  <text class="box-title" x="205" y="520">Core</text>
+  <text class="box-small" x="165" y="543">Script container</text>
+  <text class="box-small" x="160" y="563">Device contract</text>
+  <rect class="node" x="410" y="495" width="220" height="84" fill="#ccfbf1" stroke="#06b6d4" />
+  <text class="box-title" x="463" y="525">Write Pipeline</text>
+  <text class="box-small" x="468" y="550">chunking + pacing</text>
+  <rect class="node" x="710" y="495" width="220" height="84" fill="#fed7aa" stroke="#f59e0b" />
+  <text class="box-title" x="757" y="525">Receive + Query</text>
+  <text class="box-small" x="762" y="550">dispatch + timeout</text>
+  <rect class="node" x="970" y="495" width="130" height="84" fill="#f5d0fe" stroke="#ec4899" />
+  <text class="box-title" x="1000" y="520">Image</text>
+  <text class="box-small" x="988" y="543">Raster helpers</text>
+  <line x1="565" y1="366" x2="565" y2="495" stroke="#15803d" stroke-width="3" marker-end="url(#arrow-green)" />
+  <text class="label" x="580" y="438">common model</text>
+  <line x1="340" y1="537" x2="410" y2="537" stroke="#15803d" stroke-width="3" marker-end="url(#arrow-green)" />
+  <line x1="630" y1="537" x2="710" y2="537" stroke="#0891b2" stroke-width="3" marker-end="url(#arrow-cyan)" />
+
+  <rect class="panel" x="60" y="680" width="1080" height="148" fill="#fef3c7" stroke="#f59e0b" opacity="0.86" />
+  <text class="zone-label" x="86" y="712" fill="#92400e">Dialect Families + Device Transports</text>
+  <rect class="node" x="110" y="735" width="260" height="76" fill="#fef3c7" stroke="#f59e0b" />
+  <text class="box-title" x="162" y="762">Dialect Builders</text>
+  <text class="box-small" x="165" y="787">ESC / TSPL / CPCL</text>
+  <rect class="node" x="410" y="735" width="240" height="76" fill="#fed7aa" stroke="#f59e0b" />
+  <text class="box-title" x="458" y="762">Printer Families</text>
+  <text class="box-small" x="432" y="787">Boxliy / Aryten / Lin8inch</text>
+  <rect class="node" x="710" y="735" width="285" height="76" fill="#bfdbfe" stroke="#3b82f6" />
+  <text class="box-title" x="766" y="762">Transport Adapters</text>
+  <text class="box-small" x="735" y="787">BLE / Classic BT / USB / Network</text>
+  <path d="M520 579 C455 625, 360 680, 265 735" fill="none" stroke="#b45309" stroke-width="3" marker-end="url(#arrow-amber)" />
+  <line x1="370" y1="773" x2="410" y2="773" stroke="#b45309" stroke-width="3" marker-end="url(#arrow-amber)" />
+  <line x1="650" y1="773" x2="710" y2="773" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow-blue)" />
+  <text class="label" x="674" y="762">bytes</text>
+
+  <rect class="node" x="760" y="865" width="260" height="68" fill="#fecaca" stroke="#ef4444" />
+  <text class="box-title" x="813" y="892">Printer Firmware</text>
+  <text class="box-small" x="812" y="914">mechanism + sensors</text>
+  <line x1="852" y1="811" x2="885" y2="865" stroke="#dc2626" stroke-width="3" marker-end="url(#arrow-red)" />
+  <text class="label" x="886" y="846">write</text>
+  <path d="M820 865 C790 755, 780 640, 790 579" fill="none" stroke="#b45309" stroke-width="3" stroke-dasharray="10 8" marker-end="url(#arrow-amber)" />
+  <text class="label" x="812" y="670">notify / response</text>
+  <path d="M710 530 C560 470, 395 320, 210 230" fill="none" stroke="#b45309" stroke-width="3" stroke-dasharray="10 8" marker-end="url(#arrow-amber)" />
+  <text class="label" x="430" y="392">parsed status to app</text>
+
+  <text class="note" x="110" y="880">Rule: choose command builders by actual printer support.</text>
+  <text class="note" x="110" y="905">The same template can reuse different transports.</text>
+</svg>

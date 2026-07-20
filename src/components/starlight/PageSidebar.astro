@@ -1,0 +1,86 @@
+---
+import TableOfContents from 'virtual:starlight/components/TableOfContents';
+
+const locale = Astro.locals.starlightRoute.locale || 'root';
+const title = {
+	root: 'On this page',
+	'zh-hans': '本页目录',
+	'zh-hant': '本頁目錄',
+	ko: '이 페이지',
+	ja: 'このページ',
+}[locale] ?? 'On this page';
+const toggleLabel = {
+	root: 'Fold',
+	'zh-hans': '折叠',
+	'zh-hant': '折疊',
+	ko: '접기',
+	ja: '折り畳む',
+}[locale] ?? 'Fold';
+const expandLabel = {
+	root: 'List',
+	'zh-hans': '展开',
+	'zh-hant': '展開',
+	ko: '목록',
+	ja: '一覧',
+}[locale] ?? 'List';
+---
+
+{Astro.locals.starlightRoute.toc && (
+	<aside class="page-toc" aria-label={title} data-mode="list" data-docs-toc data-fold-label={toggleLabel} data-expand-label={expandLabel}>
+		<div class="toc-head">
+			<h3>{title}</h3>
+			<button class="toc-toggle" type="button" aria-label={toggleLabel} aria-pressed="false">{toggleLabel}</button>
+		</div>
+		<div class="toc-list"><TableOfContents /></div>
+	</aside>
+)}
+
+<script>
+	const storageKey = 'qishu-docs-toc-mode';
+
+	function syncDocsToc(toc: HTMLElement, mode: string): void {
+		const dots = mode === 'dots';
+		const nextMode = dots ? 'dots' : 'list';
+		toc.dataset.mode = nextMode;
+		toc.closest('.docs-layout')?.classList.toggle('toc-dots', dots);
+
+		const toggle = toc.querySelector<HTMLButtonElement>('.toc-toggle');
+		if (!toggle) return;
+		const label = dots ? toc.dataset.expandLabel || 'List' : toc.dataset.foldLabel || 'Fold';
+		toggle.textContent = label;
+		toggle.setAttribute('aria-label', label);
+		toggle.setAttribute('aria-pressed', String(dots));
+	}
+
+	function setupDocsToc(toc: HTMLElement): void {
+		if (toc.dataset.ready === 'true') return;
+		toc.dataset.ready = 'true';
+
+		toc.querySelectorAll<HTMLAnchorElement>('.toc-list a').forEach((link) => {
+			const label = link.textContent?.trim();
+			if (!label) return;
+			link.dataset.label = label;
+			link.title = label;
+		});
+
+		let storedMode = 'list';
+		try {
+			storedMode = localStorage.getItem(storageKey) || 'list';
+		} catch {
+			storedMode = 'list';
+		}
+		syncDocsToc(toc, storedMode);
+
+		toc.querySelector('.toc-toggle')?.addEventListener('click', () => {
+			const nextMode = toc.dataset.mode === 'dots' ? 'list' : 'dots';
+			syncDocsToc(toc, nextMode);
+			try {
+				localStorage.setItem(storageKey, nextMode);
+			} catch {
+				// TOC mode is a visual preference only.
+			}
+		});
+	}
+
+	document.querySelectorAll<HTMLElement>('[data-docs-toc]').forEach(setupDocsToc);
+</script>

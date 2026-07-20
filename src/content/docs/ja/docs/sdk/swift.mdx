@@ -1,0 +1,123 @@
+---
+title: Swift SDK
+description: iOS と macOS Swift プロジェクト向けの NIB プリンター SDK 導入説明。
+sidebar:
+  order: 6
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Swift SDK は新しい iOS と macOS のネイティブプロジェクトに適しています。ソース内では確認可能な `Package.swift` が見つかっていないため、ここでは具体的な SwiftPM product 名は書きません。配布パッケージの import 方式に従って、対応するモジュールを導入してください。
+
+## モジュール内容
+
+| モジュール | よく使う型 |
+| --- | --- |
+| Core | `NibScript`、`NibDevice`、`NibPen`、`NibWritePipeline`、受信ソース、クエリ分配。 |
+| BLE | `NibBleCentral`、`NibBleDevice`、`NibBleConnectionOptions`、credit フロー制御。 |
+| Boxliy dialects | `NibEscBoxliy`、`NibTsplBoxliy`、`NibCpclBoxliy` とレスポンス parser。 |
+| Aryten dialects | `NibEscAryten`、`NibTsplAryten`、`NibCpclAryten`。 |
+| Image helpers | 配布バージョンで利用可能な画像準備と印刷補助機能。 |
+
+## Core オブジェクト
+
+`NibDevice` は最小デバイス契約です。
+
+```swift
+public protocol NibDevice: AnyObject {
+  var name: String { get }
+  var connected: Bool { get }
+
+  func write(_ data: Data) throws
+  func read(maxLength: Int) throws -> Data
+  func close() throws
+}
+```
+
+`NibScript` は構築済みの `Data` を保持し、`length`、`string`、`hexString` を提供します。`NibWritePipeline` は分割書き込みを担当し、デフォルトの `chunkSize` は `512` バイトです。
+
+## 初回印刷
+
+```swift
+let connectedDevice: NibDevice = /* BLE 或平台设备 */
+
+let script = NibTsplAryten()
+  .size(width: 40, height: 30)
+  .cls()
+  .text(x: 20, y: 20, content: "NIB SDK")
+  .print()
+  .script
+
+let pipeline = NibWritePipeline()
+try pipeline.write(script, to: connectedDevice)
+```
+
+ビルダーはスクリプト生成を担当し、`NibWritePipeline` はスクリプトを分割してデバイスへ書き込みます。分割サイズを変更する場合は次のようにします。
+
+```swift
+let pipeline = NibWritePipeline(chunkSize: 185)
+try pipeline.write(script, to: connectedDevice)
+```
+
+## BLE 導入
+
+BLE の入口は `NibBleCentral` です。
+
+```swift
+let central = NibBleCentral()
+try central.startDiscovery(timeout: 10)
+
+// 用户选择 discoveredDevices 里的目标设备后：
+let device = try central.connect(
+  selectedDevice,
+  options: NibBleConnectionOptions()
+)
+```
+
+`NibBleConnectionOptions` では、`serviceUUIDs`、`writeCharacteristicUUID`、`readCharacteristicUUID`、接続および検出タイムアウト、`writeMode`、`credit`、カスタム `flowControl` を設定できます。書き込みモードは `NibBleWriteMode.withResponse` または `.withoutResponse` で、デフォルトは `.withoutResponse` です。
+
+## BLE credit フロー制御
+
+credit API には次があります。
+
+| API | 用途 |
+| --- | --- |
+| `NibBleCreditOptions` | credit の有効化、UUID、初期 credit、MTU、戦略、fallback を設定します。 |
+| `NibBleLaneCreditWriter` | lane-credit 戦略。 |
+| `NibBleSignalCreditWriter` | signal-credit 戦略。 |
+| `NibBleFlowControlStrategy` | カスタムフロー制御戦略プロトコル。 |
+
+デフォルト UUID は `FF00` service、`FF02` write、`FF01` read、`FF03` credit です。lane-credit のデフォルト初期 credit は `1`、payload overhead は `3` です。signal-credit のデフォルト初期 credit は `0`、payload overhead は `0` です。`NibBleCreditOptions` は、`.signalCredit` を選ぶか `enabled: true` を明示設定しない限り、デフォルトでは有効になりません。
+
+## 受信、クエリ、dataStream
+
+Core の受信型には `NibReceiveSource`、`NibCallbackReceiveSource`、`NibPollingReceiveSource`、`NibReceiveListener` があります。クエリ型には `NibQueryDispatcher<Response>`、`NibPendingQuery<Response>`、`NibResponseMatcher<Response>` があります。
+
+`NibReceiveSource` は `dataStream()` 拡張を提供し、応答を `AsyncStream<Data>` に変換できます。
+
+```swift
+for await data in device.receiveSource.dataStream() {
+  let response = NibTsplResponseParser.parse(query: .status, raw: data)
+  if response.isReady {
+    break
+  }
+}
+```
+
+Boxliy 方言 parser 名は次のとおりです。
+
+| 方言 | parser |
+| --- | --- |
+| ESC | `NibEscResponseParser` |
+| TSPL | `NibTsplResponseParser` |
+| CPCL | `NibCpclResponseParser` |
+
+<SdkApiReference sdk="swift" locale="ja" />
+
+## 実践上のおすすめ
+
+- まず機種が ESC、TSPL、CPCL のどれに対応しているか確認してから、ビルダーを選びます。
+- BLE 権限、スキャン、再接続、App ライフサイクルロジックは接続層に置きます。
+- テンプレート層は用紙サイズ、座標、画像、テキスト内容だけを扱います。
+- 実機で write mode、MTU、credit 通知、大きな画像、連続印刷を検証してください。

@@ -1,0 +1,138 @@
+---
+title: TypeScript SDK
+description: Web、ミニプログラム、Node、ブリッジランタイム向けの NIB プリンター SDK 導入説明。
+sidebar:
+  order: 3
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+TypeScript SDK は Web、ミニプログラム、UniApp、Taro、Node ツール、ネイティブブリッジランタイムに適しています。初めて使うときは、まず 1 つだけ覚えてください。テンプレートコードは印刷命令だけを生成し、プラットフォームコードはバイト列をプリンターへ書き込むことだけを担当します。
+
+## パッケージ選択
+
+| パッケージ | 用途 |
+| --- | --- |
+| `@boxliy/nib` | 標準集約パッケージ。core、Boxliy/Aryten/Lin8inch 方言、画像機能を export します。 |
+| `@nib/core` | `ConnectedDevice`、`writeTo()`、`WriteOptions`、受信ソース、クエリ分配。 |
+| `@nib/esc-boxliy`、`@nib/tspl-boxliy`、`@nib/cpcl-boxliy` | Boxliy ESC、TSPL、CPCL 命令ビルダーとレスポンス parser。 |
+| `@nib/esc`、`@nib/tspl`、`@nib/cpcl` | Aryten 互換方言。 |
+| `@nib/esc-lin8inch`、`@nib/tspl-lin8inch` | Lin8inch 方言。 |
+| `@nib/bluetooth-ble-core` | BLE characteristic 選択、UUID マッチング、credit フロー制御。 |
+| `@nib/wechat-bluetooth-ble`、`@nib/uniapp-bluetooth-ble`、`@nib/taro-bluetooth-ble` | WeChat、UniApp、Taro の BLE アダプター。 |
+| `@nib/webusb` | ブラウザー WebUSB 接続。 |
+
+どこから始めるべきか迷う場合、業務プロジェクトでは通常 `@boxliy/nib` を先に使います。パッケージ分割や機能の削減が必要になったときだけ、下位モジュールへ直接依存します。
+
+## ConnectedDevice 契約
+
+すべてのプラットフォームアダプターは、最終的に core の `ConnectedDevice` を提供する必要があります。
+
+```ts
+interface ConnectedDevice {
+  origin(): any
+  deviceName(): string
+  connectionState(): ConnectionState
+  disconnect(): Promise<void>
+  canRead(): boolean
+  write(data: Uint8Array): Promise<void>
+  read(options?: ReadOptions): Promise<Uint8Array>
+  notify(callback: (value: Uint8Array) => Promise<void>): void
+  flush(): void
+}
+```
+
+WeChat、ミニプログラムフレームワーク、WebUSB、ネイティブ App の API はまったく異なっていてもかまいません。このインターフェイスにラップできれば、同じ印刷テンプレートを再利用できます。
+
+## 初回印刷
+
+最初は TSPL ラベルのサンプルから始めることをおすすめします。用紙サイズ、キャンバス消去、文字配置、印刷部数が明確に表れるためです。
+
+```ts
+import { TsplAryten } from '@boxliy/nib'
+
+await TsplAryten.create()
+  .size(40, 30)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print()
+  .writeTo(device)
+```
+
+`writeTo(device)` はビルダー内のバイト列をデバイスへ書き込み、その後で現在のビルダーを空にします。先にバイト列を取得してから手動で書き込むこともできます。
+
+```ts
+import { WriteOptions, writeTo } from '@boxliy/nib'
+
+const data = TsplAryten.create()
+  .size(40, 30)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print()
+  .bytes()
+
+await writeTo(device, data, new WriteOptions(true, 512))
+```
+
+`writeTo()` はデフォルトで分割書き込みを有効にし、デフォルトの分割サイズは `512` バイトです。デバイスまたはプラットフォーム API 側ですでに分割が処理されている場合にだけ、分割の無効化を検討してください。
+
+## ESC テキストの注意点
+
+異なる言語や異なる方言のサンプルを混用しないでください。現在の TypeScript の `EscBoxliy` は ESC コマンド、クエリ、画像などの機能に適していますが、Java/Swift のような `text('...')` サンプル形式ではありません。通常のテキスト内容は TSPL/CPCL の `text(...)` API を選ぶか、具体的な ESC 方言が対応するメソッドで raw bytes を生成してください。
+
+```ts
+import { EscBoxliy } from '@boxliy/nib'
+
+const script = EscBoxliy.create()
+  .reset()
+  .feed(2)
+  .bytes()
+
+await writeTo(device, script)
+```
+
+## BLE credit フロー制御
+
+`@nib/bluetooth-ble-core` は 2 種類の credit 戦略を提供します。
+
+| API | 用途 |
+| --- | --- |
+| `BleLaneCreditFlowControlStrategy` | デフォルトの lane-credit 戦略。credit と MTU に基づいて分割書き込みします。 |
+| `BleSignalCreditFlowControlStrategy` | signal-credit 戦略。credit 通知の意味が異なるデバイスに適しています。 |
+| `BleCreditOptions` | サービス UUID、書き込み/読み取り/credit characteristic、初期 credit、MTU、fallback を設定します。 |
+| `selectBleCreditCharacteristicPair()` | UUID に基づいてサービスリストから write、read、credit characteristic を見つけます。 |
+
+デフォルト UUID は次のとおりです。
+
+| 項目 | デフォルト値 |
+| --- | --- |
+| service | `FF00` |
+| write characteristic | `FF02` |
+| read characteristic | `FF01` |
+| credit characteristic | `FF03` |
+
+デフォルトの lane-credit 初期 credit は `1`、初期 MTU は `20`、payload overhead は `3` です。signal-credit のデフォルト初期 credit は `0`、payload overhead は `0` です。`fallbackMode: 'bypass-write'` を有効にすると、credit タイムアウト時に通常書き込みへフォールバックできます。デフォルト動作は失敗です。
+
+## 受信、クエリ、解析
+
+core でよく使う受信とクエリの型は、`ReceiveSource`、`PollingReceiveSource`、`CallbackReceiveSource`、`NotifyReceiveSource`、`receiveSourceOf()`、`QueryDispatcher`、`PendingQuery` です。
+
+Boxliy 方言はレスポンス parser を提供します。
+
+| 方言 | parser |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+ステータスをクエリするときは、まず方言ビルダーでクエリ命令を生成してデバイスへ書き込み、次にデバイス応答を対応する parser に渡します。解析ロジックは印刷セッション層に置き、UI コンポーネントへ散らさないことをおすすめします。
+
+<SdkApiReference sdk="typescript" locale="ja" />
+
+## 実践上のおすすめ
+
+- まずプリンターが ESC、TSPL、CPCL のどれに対応しているか確認してから、ビルダーを選びます。
+- プラットフォームの Bluetooth、USB、ブリッジ API はすべて adapter 層に置き、テンプレート層はバイト列だけを生成します。
+- 各テンプレートにバイトスナップショットテストを残し、UI 変更で命令を壊さないようにします。
+- BLE デバイスでは、実機で MTU、分割サイズ、credit 通知、切断後の再接続を検証してください。

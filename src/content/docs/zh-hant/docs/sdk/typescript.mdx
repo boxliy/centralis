@@ -1,0 +1,138 @@
+---
+title: TypeScript SDK
+description: 面向 Web、小程式、Node 和橋接執行時的 NIB 印表機 SDK 接入說明。
+sidebar:
+  order: 3
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+TypeScript SDK 適合 Web、小程式、UniApp、Taro、Node 工具和原生橋接執行時。初學時可以先記住一件事：範本程式碼只產生列印指令，平台程式碼只負責把位元組寫進印表機。
+
+## 套件選擇
+
+| 包 | 用途 |
+| --- | --- |
+| `@boxliy/nib` | 標準聚合套件，匯出 core、Boxliy/Aryten/Lin8inch 方言和圖片能力。 |
+| `@nib/core` | `ConnectedDevice`、`writeTo()`、`WriteOptions`、接收源和查詢分發。 |
+| `@nib/esc-boxliy`、`@nib/tspl-boxliy`、`@nib/cpcl-boxliy` | Boxliy ESC、TSPL、CPCL 指令建構器和回應解析器。 |
+| `@nib/esc`、`@nib/tspl`、`@nib/cpcl` | Aryten 相容方言。 |
+| `@nib/esc-lin8inch`、`@nib/tspl-lin8inch` | Lin8inch 方言。 |
+| `@nib/bluetooth-ble-core` | BLE 特徵值選擇、UUID 匹配和 credit 流控。 |
+| `@nib/wechat-bluetooth-ble`、`@nib/uniapp-bluetooth-ble`、`@nib/taro-bluetooth-ble` | 微信、UniApp、Taro 的 BLE 轉接。 |
+| `@nib/webusb` | 瀏覽器 WebUSB 連線。 |
+
+如果不確定從哪裡開始，業務專案通常先用 `@boxliy/nib`；只有在需要拆分套件或裁剪能力時，再直接依賴底層模組。
+
+## ConnectedDevice 合約
+
+所有平台轉接器最後都要提供 core 的 `ConnectedDevice`：
+
+```ts
+interface ConnectedDevice {
+  origin(): any
+  deviceName(): string
+  connectionState(): ConnectionState
+  disconnect(): Promise<void>
+  canRead(): boolean
+  write(data: Uint8Array): Promise<void>
+  read(options?: ReadOptions): Promise<Uint8Array>
+  notify(callback: (value: Uint8Array) => Promise<void>): void
+  flush(): void
+}
+```
+
+微信、小程式框架、WebUSB 或原生 App 的 API 可以完全不同，但只要包裝成這個介面，同一套列印範本就可以複用。
+
+## 第一次列印
+
+推薦從 TSPL 標籤範例開始，因為它清楚表達紙張尺寸、清空畫布、放置文字和列印份數：
+
+```ts
+import { TsplAryten } from '@boxliy/nib'
+
+await TsplAryten.create()
+  .size(40, 30)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print()
+  .writeTo(device)
+```
+
+`writeTo(device)` 會把建構器裡的位元組寫入裝置，然後清空目前建構器。也可以先取得位元組，再手動寫入：
+
+```ts
+import { WriteOptions, writeTo } from '@boxliy/nib'
+
+const data = TsplAryten.create()
+  .size(40, 30)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print()
+  .bytes()
+
+await writeTo(device, data, new WriteOptions(true, 512))
+```
+
+`writeTo()` 預設啟用分片寫入，預設分片大小是 `512` 位元組。只有裝置或平台 API 已經處理好分片時，才考慮關閉分片。
+
+## ESC 文字注意點
+
+不要把不同語言或不同方言的範例混用。目前 TypeScript 的 `EscBoxliy` 適合 ESC 命令、查詢、圖片等能力，但不是 Java/Swift 那種 `text('...')` 範例形態。一般文字內容可以選擇 TSPL/CPCL 的 `text(...)` API，或按具體 ESC 方言支援的方法產生原始位元組。
+
+```ts
+import { EscBoxliy } from '@boxliy/nib'
+
+const script = EscBoxliy.create()
+  .reset()
+  .feed(2)
+  .bytes()
+
+await writeTo(device, script)
+```
+
+## BLE credit 流控
+
+`@nib/bluetooth-ble-core` 提供兩類 credit 策略：
+
+| API | 用途 |
+| --- | --- |
+| `BleLaneCreditFlowControlStrategy` | 預設的 lane-credit 策略，按 credit 和 MTU 分片寫入。 |
+| `BleSignalCreditFlowControlStrategy` | signal-credit 策略，適合 credit 通知語義不同的裝置。 |
+| `BleCreditOptions` | 配置服務 UUID、寫入/讀取/credit 特徵值、初始 credit、MTU 和 fallback。 |
+| `selectBleCreditCharacteristicPair()` | 按 UUID 從服務列表中找到 write、read、credit 特徵值。 |
+
+預設 UUID 是：
+
+| 項 | 預設值 |
+| --- | --- |
+| service | `FF00` |
+| write characteristic | `FF02` |
+| read characteristic | `FF01` |
+| credit characteristic | `FF03` |
+
+預設 lane-credit 初始 credit 是 `1`，初始 MTU 是 `20`，payload overhead 是 `3`。signal-credit 預設初始 credit 是 `0`，payload overhead 是 `0`。如果啟用 `fallbackMode: 'bypass-write'`，credit 逾時時可以退回一般寫入；預設行為是失敗。
+
+## 接收、查詢和解析
+
+core 裡常用的接收和查詢類型是 `ReceiveSource`、`PollingReceiveSource`、`CallbackReceiveSource`、`NotifyReceiveSource`、`receiveSourceOf()`、`QueryDispatcher` 和 `PendingQuery`。
+
+Boxliy 方言提供回應解析器：
+
+| 方言 | 解析器 |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+查詢狀態時，先用方言建構器產生查詢指令並寫入裝置，再把裝置回包交給對應 parser。解析邏輯建議放在列印會話層，不要散落在 UI 元件裡。
+
+<SdkApiReference sdk="typescript" locale="zh-hant" />
+
+## 實戰建議
+
+- 先確認印表機支援 ESC、TSPL 還是 CPCL，再選建構器。
+- 平台藍牙、USB、橋接 API 都放在 adapter 層，範本層只產生位元組。
+- 每個範本都保留位元組快照測試，避免改 UI 時改壞指令。
+- BLE 裝置要在真機上驗證 MTU、分片大小、credit 通知和斷線重連。

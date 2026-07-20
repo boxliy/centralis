@@ -1,0 +1,128 @@
+---
+title: Dart SDK
+description: 面向 Flutter 和 Dart 客戶端的 NIB 印表機 SDK 接入說明。
+sidebar:
+  order: 2
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Dart SDK 適合 Flutter 應用程式，也適合希望複用一套列印範本的 Android、iOS、桌面端客戶端。初學時建議把程式碼分成兩層：連線層負責取得裝置，範本層負責產生 ESC、TSPL 或 CPCL 指令。
+
+## 套件選擇
+
+| 包 | 用途 |
+| --- | --- |
+| `nib` | 標準聚合套件，匯出 core、Boxliy/Aryten/Lin8inch 方言和圖片能力。 |
+| `nib_core` | `ConnectedDevice`、`WritePipeline`、`ChunkPolicy`、接收源和查詢分發。 |
+| `nib_esc_boxliy`、`nib_tspl_boxliy`、`nib_cpcl_boxliy` | Boxliy 方言建構器和回應解析器。 |
+| `nib_esc`、`nib_tspl`、`nib_cpcl` | Aryten 相容方言。 |
+| `nib_esc_lin8inch`、`nib_tspl_lin8inch` | Lin8inch 方言。 |
+| `nib_bluetooth_ble` | BLE 掃描、連線、特徵值選擇和 credit 流控。 |
+| `nib_bluetooth_classic` | 經典藍牙印表機連線。 |
+
+正式專案一般從 `package:nib/nib.dart` 開始；只有需要按模組交付時，再直接使用底層套件。
+
+## ConnectedDevice 合約
+
+實際印表機連線後，應包裝成 `ConnectedDevice<T>`：
+
+```dart
+abstract class ConnectedDevice<T> {
+  T origin();
+  String? deviceName();
+  String? deviceMac();
+  ConnectionState connectionState();
+  Stream<ConnectionState> connectionStateChanges();
+  Future<void> disconnect();
+  Future<void> write(Uint8List data, {bool sendDone = true});
+  Stream<Uint8List> read(ReadOptions? options);
+}
+```
+
+BLE、經典藍牙或測試裝置只要實現這個合約，就可以使用同一套建構器和寫入管線。
+
+## 第一次列印
+
+下面範例使用標準套件裡的 Aryten TSPL 建構器。`NullDevice` 只適合本機測試；實際專案裡要換成 BLE 或經典藍牙連線回傳的裝置。
+
+```dart
+import 'package:nib/nib.dart';
+
+final device = NullDevice.instance;
+
+final printer = TsplAryten(device)
+  ..size(40, 30)
+  ..cls()
+  ..text(x: 20, y: 20, content: 'NIB SDK')
+  ..print();
+
+await printer.flush();
+```
+
+`flush()` 會把建構器目前位元組寫入它綁定的裝置。需要更細的進度、逾時或分片控制時，直接使用 `WritePipeline`：
+
+```dart
+final result = await WritePipeline.write(
+  device,
+  printer.bytes(),
+  options: WriteOptions(
+    chunkPolicy: ChunkPolicy.fixed(1024),
+  ),
+);
+
+if (!result.success) {
+  // 根据 cancelled、timedOut、backpressured 做业务处理。
+}
+```
+
+core 預設分片大小是 `1024` 位元組，也就是 `WriteOptions()` 預設使用 `ChunkPolicy.fixed(NibDefaults.chunkSize)`。
+
+## BLE 分片和 credit
+
+一般 BLE 寫入通常要根據 MTU 控制分片：
+
+```dart
+final flow = BleFlowController.forNegotiatedMtu(185);
+
+await WritePipeline.write(
+  device,
+  printer.bytes(),
+  options: flow.writeOptions,
+);
+```
+
+`nib_bluetooth_ble` 還提供 credit 流控：
+
+| API | 用途 |
+| --- | --- |
+| `BleCreditOptions` | 啟用 credit，並配置 UUID、策略、初始 credit、MTU 和 fallback。 |
+| `BleLaneCreditFlowControlStrategy` | lane-credit 策略，預設初始 credit 為 `1`。 |
+| `BleSignalCreditFlowControlStrategy` | signal-credit 策略，預設初始 credit 為 `0`。 |
+| `selectBleCreditCharacteristicPair()` | 找到 service、write、read、credit 特徵值組合。 |
+
+預設 UUID 是 `FF00` service、`FF02` write、`FF01` read、`FF03` credit。預設初始 MTU 是 `20`；lane-credit 預設 payload overhead 是 `3`，signal-credit 預設 payload overhead 是 `0`。`BleCreditOptions.enabled` 預設是 `false`，只有裝置需要 credit 通知時才開啟。
+
+## 接收、查詢和解析
+
+core 接收與查詢類型包括 `ReceiveSource`、`StreamReceiveSource`、`ReceiveSources.fromDevice()`、`QueryDispatcher<T>` 和 `PendingQuery<T>`。`ConnectedDevice` 也有 `receiveSource()` 擴展方法，可以把 `read()` 流包裝成接收源。
+
+Boxliy 方言提供這些 parser：
+
+| 方言 | 解析器 |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+`EscResponseParser` 和 `TsplResponseParser` 常用 `parse(query, data)`；CPCL 既有查詢解析，也有 `parseEvent(...)` 用於狀態frame。
+
+<SdkApiReference sdk="dart" locale="zh-hant" />
+
+## 實戰建議
+
+- 先按機型確認 ESC、TSPL 或 CPCL，不要在一個範本裡混用多個方言。
+- 連線、權限、重連放在服務層；列印範本只關心紙寬、座標和內容。
+- 標籤列印先確認毫米尺寸、DPI、間隙和濃度，再寫範本。
+- BLE 真機測試要覆蓋大圖、連續列印、斷線重連和 credit 通知。

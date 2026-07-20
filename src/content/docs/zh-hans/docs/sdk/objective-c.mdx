@@ -1,0 +1,117 @@
+---
+title: Objective-C SDK
+description: 面向 iOS Objective-C 项目的 NIB 打印机 SDK 接入说明。
+sidebar:
+  order: 5
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Objective-C SDK 适合已有 iOS 项目、Objective-C / Swift 混编项目，以及以 framework 或 `Nib.xcframework` 形式交付的项目。标准入口头文件是：
+
+```objc
+#import <Nib/Nib.h>
+```
+
+## Framework 内容
+
+| 模块 | 常用类型 |
+| --- | --- |
+| Core | `BNDevice`、`BNScript`、`BNWritePipeline`、`BNReceiveSource`、`BNQueryDispatcher`。 |
+| BLE | `BNBleCentral`、`BNBleDevice`、`BNBleConnectionOptions`、credit 流控。 |
+| Boxliy dialects | `BNEscBoxliy`、`BNTsplBoxliy`、`BNCpclBoxliy` 和响应解析器。 |
+| Aryten dialects | `BNEscAryten`、`BNTsplAryten`、`BNCpclAryten`。 |
+| Lin8inch dialects | `BNEscLin8inch`、`BNTsplLin8inch`。 |
+| Image helpers | 交付包中可用的图片准备和打印辅助能力。 |
+
+## Core 对象
+
+`BNDevice` 是最小设备合约：
+
+```objc
+@protocol BNDevice <NSObject>
+
+@property(nonatomic, copy, readonly) NSString *name;
+@property(nonatomic, assign, readonly) BOOL connected;
+
+- (BOOL)writeData:(NSData *)data error:(NSError **)error;
+- (NSData *)readWithTimeout:(NSTimeInterval)timeout error:(NSError **)error;
+- (BOOL)closeWithError:(NSError **)error;
+
+@end
+```
+
+`BNScript` 保存构建好的 `NSData`，`BNWritePipeline` 负责按 `chunkSize` 分片写入 `BNDevice`。
+
+## 第一次打印
+
+```objc
+#import <Nib/Nib.h>
+
+id<BNDevice> connectedDevice = /* BLE 或平台设备 */;
+
+BNTsplAryten *printer = [[BNTsplAryten alloc] init];
+BNScript *script = [[[[[printer sizeWithWidth:40 height:30]
+    cls]
+    textAtX:20 y:20 content:@"NIB SDK"]
+    print]
+    script];
+
+BNWritePipeline *pipeline = [[BNWritePipeline alloc] initWithDevice:connectedDevice chunkSize:512];
+
+NSError *error = nil;
+BOOL ok = [pipeline writeScript:script error:&error];
+```
+
+如果设备使用 ESC 小票式输出，也可以用 `BNEscBoxliy` 构建 `BNScript`。无论使用哪种方言，真正写入都交给 `BNDevice` 或 `BNWritePipeline`。
+
+## BLE 接入
+
+BLE 入口是 `BNBleCentral`。常见流程是：
+
+1. 创建 `BNBleCentral`。
+2. 调用 `startDiscoveryWithDisconnectConnectedDevice:useMac:timeout:serviceUUIDs:discovered:error:` 扫描。
+3. 选择 `BNBleDiscoveredDevice`。
+4. 创建 `BNBleConnectionOptions`，按设备设置 service、write、read、write mode 和 credit。
+5. 调用 `connectDiscoveredDevice:options:completion:` 得到 `BNBleDevice`。
+6. 使用方言构建器生成脚本。
+7. 通过 `BNWritePipeline` 或 `BNBleDevice` 写入。
+
+`BNBleConnectionOptions` 里可以设置 `writeMode`，对应 `BNBleWriteMode` 的 with response / without response 写入模式。
+
+## BLE credit 流控
+
+credit API 在 `BNBleCredit.h`：
+
+| API | 用途 |
+| --- | --- |
+| `BNBleCreditOptions` | 配置 credit 是否启用、UUID、初始 credit、MTU、策略和 fallback。 |
+| `BNBleLaneCreditWriter` | lane-credit 写入器。 |
+| `BNBleSignalCreditWriter` | signal-credit 写入器。 |
+| `BNBleFlowControlStrategy` | 自定义流控策略协议。 |
+
+`[BNBleCreditOptions defaultOptions]` 使用 `FF00` service、`FF02` write、`FF01` read、`FF03` credit notify，初始 credit 为 `1`，初始 MTU 为 `20`，payload overhead 为 `3`。普通 `BNBleConnectionOptions` 默认不启用 credit；只有设备需要 credit 通知时才设置 `creditOptions`。
+
+## 接收、查询和解析
+
+Core 接收与查询类型包括 `BNReceiveSource`、`BNCallbackReceiveSource`、`BNPollingReceiveSource`、`BNReceiveListener`、`BNQueryDispatcher`、`BNPendingQuery` 和 `BNResponseMatcher`。BLE 设备也暴露 `receiveSource`，可用于通知回包。
+
+Boxliy 方言 parser 名称：
+
+| 方言 | 解析器 |
+| --- | --- |
+| ESC | `BNEscResponseParser` |
+| TSPL | `BNTsplResponseParser` |
+| CPCL | `BNCpclResponseParser` |
+
+建议由打印会话层负责“发送查询指令、等待回包、调用 parser”，UI 层只展示结果。
+
+<SdkApiReference sdk="objective-c" locale="zh-hans" />
+
+## 实战建议
+
+- 在真机上验证蓝牙权限、前后台切换、断线重连和连续打印。
+- 大图片和标签模板都要通过 `BNWritePipeline` 分片写入。
+- UUID、write mode、credit 策略必须按具体机型确认。
+- Objective-C 与 Swift 混编时，把模板层保持为普通 SDK 类型，避免直接依赖页面生命周期。

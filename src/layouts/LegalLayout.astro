@@ -1,0 +1,305 @@
+---
+const { frontmatter } = Astro.props;
+const title = frontmatter.title ?? 'Legal';
+const description = frontmatter.description ?? '';
+const appName = frontmatter.appName ?? 'Application';
+const updatedAt = frontmatter.updatedAt ?? '';
+const effectiveAt = frontmatter.effectiveAt ?? '';
+const lang = frontmatter.lang ?? 'en';
+const siteName = frontmatter.siteName ?? (lang === 'zh-Hans' ? '启枢科技' : 'Qishu Technology');
+const homeLabel = frontmatter.homeLabel ?? (lang === 'zh-Hans' ? '官网' : 'Home');
+const docsLabel = frontmatter.docsLabel ?? (lang === 'zh-Hans' ? '文档' : 'Docs');
+const legalLabel = frontmatter.legalLabel ?? (lang === 'zh-Hans' ? '协议中心' : 'Legal');
+const homeHref = frontmatter.homeHref ?? (lang === 'zh-Hans' ? '/zh-hans/' : '/');
+const docsHref = frontmatter.docsHref ?? (lang === 'zh-Hans' ? '/zh-hans/docs/' : '/docs/');
+const legalHref = frontmatter.legalHref ?? (lang === 'zh-Hans' ? '/zh-hans/legal/' : '/legal/');
+const updatedLabel = frontmatter.updatedLabel ?? (lang === 'zh-Hans' ? '更新时间' : 'Updated');
+const effectiveLabel = frontmatter.effectiveLabel ?? (lang === 'zh-Hans' ? '生效时间' : 'Effective');
+const footer = frontmatter.footer ?? (lang === 'zh-Hans'
+	? '如本页面内容与应用内最新展示版本不一致，以应用内最新版本为准。'
+	: 'If this page differs from the latest version shown in the app, the latest in-app version applies.');
+---
+
+<!doctype html>
+<html lang={lang}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title} | {appName}</title>
+		{description && <meta name="description" content={description} />}
+		<meta name="robots" content="index, follow" />
+		<link rel="icon" href="/logo-light.png" type="image/png" />
+		<style>
+			:root {
+				color-scheme: light;
+				--bg: #f4fbff;
+				--paper: rgba(255, 255, 255, 0.9);
+				--ink: #07142f;
+				--muted: #4c5870;
+				--line: rgba(36, 174, 226, 0.32);
+				--accent: #12b8e8;
+				--accent-strong: #f2c832;
+				--shadow: 14px 14px 0 rgba(36, 174, 226, 0.12);
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				margin: 0;
+				font-family:
+					Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+					"PingFang SC", "Microsoft YaHei", sans-serif;
+				color: var(--ink);
+				background:
+					linear-gradient(rgba(36, 174, 226, 0.06) 1px, transparent 1px),
+					linear-gradient(90deg, rgba(36, 174, 226, 0.06) 1px, transparent 1px),
+					linear-gradient(135deg, #fff8ff 0%, #eefaff 55%, #f7fbff 100%);
+				background-size: 28px 28px, 28px 28px, auto;
+				line-height: 1.78;
+			}
+
+			a {
+				color: #087ea4;
+				text-decoration: none;
+			}
+
+			a:hover {
+				text-decoration: underline;
+			}
+
+			.site-header {
+				border-bottom: 1px solid var(--line);
+				background: rgba(255, 255, 255, 0.76);
+				backdrop-filter: blur(18px);
+			}
+
+			.header-inner {
+				width: min(1120px, calc(100% - 32px));
+				margin: 0 auto;
+				min-height: 76px;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 20px;
+			}
+
+			.brand {
+				display: inline-flex;
+				align-items: center;
+				gap: 12px;
+				font-weight: 800;
+				letter-spacing: 0.08em;
+			}
+
+			.brand img {
+				width: 38px;
+				height: 38px;
+			}
+
+			.nav {
+				display: flex;
+				gap: 18px;
+				font-size: 14px;
+				font-weight: 700;
+			}
+
+			main {
+				width: min(960px, calc(100% - 32px));
+				margin: 64px auto;
+			}
+
+			.hero {
+				margin-bottom: 30px;
+			}
+
+			.kicker {
+				display: inline-flex;
+				align-items: center;
+				gap: 8px;
+				padding: 7px 12px;
+				border: 2px solid rgba(242, 200, 50, 0.8);
+				background: #081431;
+				color: #f8d94c;
+				font-size: 12px;
+				font-weight: 900;
+				letter-spacing: 0.16em;
+				text-transform: uppercase;
+			}
+
+			.kicker::before {
+				content: "";
+				width: 8px;
+				height: 8px;
+				background: #92e6ae;
+			}
+
+			h1 {
+				margin: 22px 0 12px;
+				font-size: clamp(42px, 8vw, 82px);
+				line-height: 0.98;
+				letter-spacing: 0;
+				color: #42bdeb;
+				text-shadow: 4px 5px 0 #f3cf3d, 8px 9px 0 #081431;
+			}
+
+			.description {
+				max-width: 760px;
+				color: var(--muted);
+				font-size: 18px;
+				font-weight: 600;
+			}
+
+			.meta {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				margin-top: 18px;
+			}
+
+			.meta span {
+				border: 1px solid var(--line);
+				background: rgba(255, 255, 255, 0.72);
+				padding: 7px 10px;
+				color: var(--muted);
+				font-size: 13px;
+				font-weight: 700;
+			}
+
+			.article {
+				position: relative;
+				padding: clamp(24px, 5vw, 54px);
+				border: 2px solid var(--line);
+				background: var(--paper);
+				box-shadow: var(--shadow);
+			}
+
+			.article::before {
+				content: "";
+				position: absolute;
+				left: -2px;
+				top: -2px;
+				width: 28px;
+				height: 28px;
+				border-left: 6px solid var(--accent);
+				border-top: 6px solid var(--accent);
+			}
+
+			.article :global(h2) {
+				margin: 42px 0 14px;
+				padding-top: 18px;
+				border-top: 1px solid var(--line);
+				font-size: 28px;
+				line-height: 1.25;
+			}
+
+			.article :global(h2:first-child) {
+				margin-top: 0;
+				padding-top: 0;
+				border-top: 0;
+			}
+
+			.article :global(h3) {
+				margin: 28px 0 10px;
+				font-size: 20px;
+			}
+
+			.article :global(p),
+			.article :global(li) {
+				color: #29344c;
+				font-size: 16px;
+			}
+
+			.article :global(strong) {
+				color: #07142f;
+			}
+
+			.article :global(table) {
+				display: block;
+				width: 100%;
+				overflow-x: auto;
+				border: 1px solid var(--line);
+				border-collapse: collapse;
+			}
+
+			.article :global(thead),
+			.article :global(tbody) {
+				display: table;
+				width: 100%;
+				min-width: 720px;
+				table-layout: fixed;
+			}
+
+			.article :global(th),
+			.article :global(td) {
+				padding: 14px 16px;
+				border-bottom: 1px solid rgba(36, 174, 226, 0.16);
+				text-align: left;
+				vertical-align: top;
+			}
+
+			.article :global(th) {
+				color: #087ea4;
+				background: rgba(36, 174, 226, 0.09);
+				font-weight: 900;
+			}
+
+			.footer {
+				margin-top: 36px;
+				color: var(--muted);
+				font-size: 13px;
+			}
+
+			@media (max-width: 720px) {
+				.header-inner {
+					align-items: flex-start;
+					flex-direction: column;
+					padding: 18px 0;
+				}
+
+				.nav {
+					flex-wrap: wrap;
+				}
+
+				main {
+					margin: 40px auto;
+				}
+
+				h1 {
+					font-size: clamp(40px, 16vw, 64px);
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<header class="site-header">
+			<div class="header-inner">
+				<a class="brand" href="/">
+					<img src="/logo-light.png" alt="Qishu" />
+					<span>QISHU</span>
+				</a>
+				<nav class="nav" aria-label="Legal navigation">
+					<a href={homeHref}>{homeLabel}</a>
+					<a href={docsHref}>{docsLabel}</a>
+					<a href={legalHref}>{legalLabel}</a>
+				</nav>
+			</div>
+		</header>
+		<main>
+			<section class="hero">
+				<div class="kicker">{appName} Legal</div>
+				<h1>{title}</h1>
+				{description && <p class="description">{description}</p>}
+				<div class="meta">
+					{updatedAt && <span>{updatedLabel}: {updatedAt}</span>}
+					{effectiveAt && <span>{effectiveLabel}: {effectiveAt}</span>}
+				</div>
+			</section>
+			<article class="article">
+				<slot />
+			</article>
+			<p class="footer">{footer}</p>
+		</main>
+	</body>
+</html>

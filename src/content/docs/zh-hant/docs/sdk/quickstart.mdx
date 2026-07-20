@@ -1,0 +1,65 @@
+---
+title: 快速開始
+description: 用最短路徑完成一次 SDK 列印。
+sidebar:
+  order: 2
+---
+
+快速開始只做一件事：產生一段最小列印指令碼，並寫入一個已經連線好的裝置物件。先讓機器列印出一行文字，再接入圖片、QR Code、標籤範本或狀態讀取。
+
+## 最小流程
+
+1. 確認機器 Family 和指令族，例如 Boxliy + TSPL。
+2. 在目標語言中安裝對應交付套件。
+3. 通過平台連線層取得 connected device。
+4. 用指令建構器產生指令碼/位元組。
+5. 通過寫入管線把位元組寫入裝置。
+
+## connected device 是什麼
+
+範例裡的 `device` 不是 SDK 自動掃描出的裝置，也不是某個平台的原始藍牙物件。它應該是連線層已經轉接好的 connected device：
+
+```text
+平台扫描/授权/连接 -> transport adapter -> connected device -> writeTo(...)
+```
+
+微信、UniApp、Taro、WebUSB、Android 藍牙或 iOS BLE 都可以有自己的連線方式，但進入列印範本前，最好都收斂到同一種 connected device 合約。
+
+## TypeScript TSPL 範例
+
+下面範例適合支援 TSPL 的 Boxliy 機器。不同機器請替換成對應 Family 和指令族的建構器。
+
+```ts
+import { TsplBoxliy, writeTo } from '@boxliy/nib'
+
+const bytes = new TsplBoxliy()
+  .size(60, 40)
+  .gap(2)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print(1)
+  .bytes()
+
+await writeTo(device, bytes)
+```
+
+如果你還不確定 TypeScript 的具體裝置套件，可以先把流程寫成偽程式碼：
+
+```ts
+const device = await connectPrinterFromYourPlatform()
+const bytes = buildReceiptOrLabel()
+await writeTo(device, bytes)
+```
+
+這裡的重點是邊界：`connectPrinterFromYourPlatform()` 處理權限、掃描、連線和 characteristic；`buildReceiptOrLabel()` 只產生列印位元組。
+
+## 第一次接入建議
+
+| 步驟 | 建議 |
+| --- | --- |
+| 先用文字列印 | 比圖片、條碼和標籤範本更容易定位連線問題。 |
+| 先固定一種機器 | 不要一開始就把多個型號和多個指令集混在一起。 |
+| 記錄寫入位元組長度 | 方便判斷是指令碼建構失敗，還是傳輸層寫入失敗。 |
+| 保留裝置日誌 | 連線、分片、逾時和狀態回包都應該能追蹤。 |
+
+如果最小文字列印還沒有跑通，先不要接入圖片、QR Code 或複雜標籤範本。

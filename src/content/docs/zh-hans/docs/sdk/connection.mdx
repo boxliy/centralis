@@ -1,0 +1,65 @@
+---
+title: 设备连接
+description: SDK 如何把平台设备适配成统一的 connected device。
+sidebar:
+  order: 5
+---
+
+SDK 的打印模板不直接操作平台蓝牙、USB 或网络 API。连接层负责扫描、授权、连接和订阅通知，然后把平台对象包装成 connected device；打印层只面对统一的写入/读取接口。
+
+这条边界很重要：模板代码应该能在不知道“这是微信 BLE 还是 iOS CoreBluetooth”的情况下生成同一段 TSPL、ESC 或 CPCL 字节。
+
+## 职责边界
+
+| 层 | 负责什么 |
+| --- | --- |
+| 平台 API | 扫描、授权、连接、断开、发现 service/characteristic、订阅通知。 |
+| Transport adapter | 把平台 API 包装成 connected device，并隐藏平台回调、权限和原始句柄。 |
+| Session | 选择模板、调用写入管线、记录日志、处理状态、超时、重试和错误。 |
+| Template | 只生成 ESC、TSPL 或 CPCL 字节，不处理蓝牙权限、socket、USB endpoint 或网络重连。 |
+
+这样拆分后，同一个打印模板可以复用到不同运行时。
+
+## connected device 合约
+
+不同语言的接口名字不同，但都表达同一件事：这是一个已经连接、可以写入字节，并在支持时读取回包的对象。
+
+| 语言 | 核心接口 | 主要方法 |
+| --- | --- | --- |
+| TypeScript | `ConnectedDevice` | `write(data)`、`read(options)`、`notify(callback)`、`disconnect()`、`connectionState()` |
+| Dart | `ConnectedDevice<T>` | `write(data)`、`read(options)`、`disconnect()`、`connectionStateChanges()` |
+| Java | `Device` | `write(byte[])`、`read(timeoutMs)`、`close()`、`connected()` |
+| Objective-C | `BNDevice` | `writeData:error:`、`readWithTimeout:error:`、`closeWithError:` |
+| Swift | `NibDevice` | `write(_:)`、`read(maxLength:)`、`close()`、`connected` |
+
+如果平台没有读取能力，可以先只实现写入路径；需要状态读取时，再补齐 read、notify 或 receive source。
+
+## 常见连接类型
+
+| 类型 | 说明 |
+| --- | --- |
+| BLE | 移动端和小程序常见，需要处理权限、service/characteristic、分片、写入模式和通知。 |
+| 经典蓝牙 | Android 和部分桌面场景常见，重点是配对、socket 和断线恢复。 |
+| USB / WebUSB | 适合浏览器、桌面或桥接场景，需要处理用户授权和端点。 |
+| 网络 | 适合局域网或网口桥接设备，需要处理连接超时和重试。 |
+
+## BLE characteristic 注意事项
+
+BLE 连接成功不代表打印可用。你还需要确认：
+
+| 项目 | 说明 |
+| --- | --- |
+| service UUID | 只在允许的 service 中寻找打印 characteristic。 |
+| write characteristic | 必须支持 `write` 或 `writeWithoutResponse`。 |
+| read/notify characteristic | 状态读取或 credit 流控需要可读、可通知，或与写入 characteristic 合一。 |
+| 自动选择策略 | TypeScript BLE core 支持按属性选择 write/notify/read，也支持指定 allowed write/read characteristic。生产环境建议记录最终选中的 UUID。 |
+| 分片大小 | 常见保守值是 20 bytes；也可以根据 negotiated MTU 或平台 maximum write length 计算。 |
+| credit/flow control | 部分 BLE 设备通过通知控制写入节奏；没有确认前不要假设可以无限连续写。 |
+
+## 建议结构
+
+1. `connectPrinter()` 只负责返回 connected device。
+2. `buildReceipt()` 或 `buildLabel()` 只负责生成指令。
+3. `printJob()` 负责连接、写入、状态读取和错误处理。
+
+不要在页面组件里直接拼指令，也不要在打印模板里写蓝牙权限逻辑。

@@ -1,0 +1,128 @@
+---
+title: Dart SDK
+description: Flutter와 Dart 클라이언트를 위한 NIB 프린터 SDK 연동 설명입니다.
+sidebar:
+  order: 2
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Dart SDK는 Flutter 애플리케이션에 적합하며, 한 벌의 인쇄 템플릿을 재사용하려는 Android, iOS, 데스크톱 클라이언트에도 적합합니다. 처음에는 코드를 두 계층으로 나누는 것을 권장합니다. 연결 계층은 디바이스를 얻고, 템플릿 계층은 ESC, TSPL 또는 CPCL 명령어를 생성합니다.
+
+## 패키지 선택
+
+| 패키지 | 용도 |
+| --- | --- |
+| `nib` | 표준 통합 패키지입니다. core, Boxliy/Aryten/Lin8inch dialect와 이미지 기능을 내보냅니다. |
+| `nib_core` | `ConnectedDevice`, `WritePipeline`, `ChunkPolicy`, 수신 소스, 질의 분배를 제공합니다. |
+| `nib_esc_boxliy`, `nib_tspl_boxliy`, `nib_cpcl_boxliy` | Boxliy dialect 빌더와 응답 parser입니다. |
+| `nib_esc`, `nib_tspl`, `nib_cpcl` | Aryten 호환 dialect입니다. |
+| `nib_esc_lin8inch`, `nib_tspl_lin8inch` | Lin8inch dialect입니다. |
+| `nib_bluetooth_ble` | BLE 스캔, 연결, characteristic 선택, credit 흐름 제어입니다. |
+| `nib_bluetooth_classic` | 클래식 블루투스 프린터 연결입니다. |
+
+정식 프로젝트는 일반적으로 `package:nib/nib.dart`부터 시작합니다. 모듈 단위로 전달해야 할 때만 하위 패키지를 직접 사용하세요.
+
+## ConnectedDevice 계약
+
+실제 프린터 연결 후에는 `ConnectedDevice<T>`로 감싸야 합니다.
+
+```dart
+abstract class ConnectedDevice<T> {
+  T origin();
+  String? deviceName();
+  String? deviceMac();
+  ConnectionState connectionState();
+  Stream<ConnectionState> connectionStateChanges();
+  Future<void> disconnect();
+  Future<void> write(Uint8List data, {bool sendDone = true});
+  Stream<Uint8List> read(ReadOptions? options);
+}
+```
+
+BLE, 클래식 블루투스, 테스트 디바이스는 이 계약만 구현하면 같은 빌더와 쓰기 파이프라인을 사용할 수 있습니다.
+
+## 첫 인쇄
+
+아래 예제는 표준 패키지의 Aryten TSPL 빌더를 사용합니다. `NullDevice`는 로컬 테스트에만 적합합니다. 실제 프로젝트에서는 BLE 또는 클래식 블루투스 연결이 반환한 디바이스로 교체해야 합니다.
+
+```dart
+import 'package:nib/nib.dart';
+
+final device = NullDevice.instance;
+
+final printer = TsplAryten(device)
+  ..size(40, 30)
+  ..cls()
+  ..text(x: 20, y: 20, content: 'NIB SDK')
+  ..print();
+
+await printer.flush();
+```
+
+`flush()`는 빌더의 현재 바이트를 바인딩된 디바이스에 씁니다. 더 세밀한 진행률, 타임아웃 또는 분할 제어가 필요하면 `WritePipeline`을 직접 사용하세요.
+
+```dart
+final result = await WritePipeline.write(
+  device,
+  printer.bytes(),
+  options: WriteOptions(
+    chunkPolicy: ChunkPolicy.fixed(1024),
+  ),
+);
+
+if (!result.success) {
+  // 根据 cancelled、timedOut、backpressured 做业务处理。
+}
+```
+
+core의 기본 분할 크기는 `1024` 바이트입니다. 즉 `WriteOptions()`는 기본적으로 `ChunkPolicy.fixed(NibDefaults.chunkSize)`를 사용합니다.
+
+## BLE 분할과 credit
+
+일반 BLE 쓰기는 보통 MTU에 맞춰 분할을 제어해야 합니다.
+
+```dart
+final flow = BleFlowController.forNegotiatedMtu(185);
+
+await WritePipeline.write(
+  device,
+  printer.bytes(),
+  options: flow.writeOptions,
+);
+```
+
+`nib_bluetooth_ble`는 credit 흐름 제어도 제공합니다.
+
+| API | 용도 |
+| --- | --- |
+| `BleCreditOptions` | credit을 활성화하고 UUID, 전략, 초기 credit, MTU, fallback을 구성합니다. |
+| `BleLaneCreditFlowControlStrategy` | lane-credit 전략이며, 기본 초기 credit은 `1`입니다. |
+| `BleSignalCreditFlowControlStrategy` | signal-credit 전략이며, 기본 초기 credit은 `0`입니다. |
+| `selectBleCreditCharacteristicPair()` | service, write, read, credit characteristic 조합을 찾습니다. |
+
+기본 UUID는 `FF00` service, `FF02` write, `FF01` read, `FF03` credit입니다. 기본 초기 MTU는 `20`입니다. lane-credit의 기본 payload overhead는 `3`, signal-credit의 기본 payload overhead는 `0`입니다. `BleCreditOptions.enabled`의 기본값은 `false`이며, 디바이스가 credit 알림을 필요로 할 때만 켜세요.
+
+## 수신, 질의, 파싱
+
+core의 수신 및 질의 타입에는 `ReceiveSource`, `StreamReceiveSource`, `ReceiveSources.fromDevice()`, `QueryDispatcher<T>`, `PendingQuery<T>`가 있습니다. `ConnectedDevice`에는 `receiveSource()` 확장 메서드도 있어 `read()` 스트림을 수신 소스로 감쌀 수 있습니다.
+
+Boxliy dialect는 다음 parser를 제공합니다.
+
+| dialect | parser |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+`EscResponseParser`와 `TsplResponseParser`는 보통 `parse(query, data)`를 사용합니다. CPCL은 질의 파싱뿐 아니라 상태 프레임을 위한 `parseEvent(...)`도 제공합니다.
+
+<SdkApiReference sdk="dart" locale="ko" />
+
+## 실전 권장 사항
+
+- 먼저 모델별로 ESC, TSPL, CPCL 중 무엇을 지원하는지 확인하고, 하나의 템플릿 안에 여러 dialect를 섞지 마세요.
+- 연결, 권한, 재연결은 서비스 계층에 두고, 인쇄 템플릿은 용지 폭, 좌표, 콘텐츠만 다루게 하세요.
+- 라벨 인쇄는 템플릿 작성 전에 밀리미터 크기, DPI, 간격, 농도를 먼저 확인하세요.
+- BLE 실제 장비 테스트는 큰 이미지, 연속 인쇄, 연결 끊김 후 재연결, credit 알림을 포함해야 합니다.

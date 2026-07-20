@@ -1,0 +1,138 @@
+---
+title: TypeScript SDK
+description: 面向 Web、小程序、Node 和桥接运行时的 NIB 打印机 SDK 接入说明。
+sidebar:
+  order: 3
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+TypeScript SDK 适合 Web、小程序、UniApp、Taro、Node 工具和原生桥接运行时。初学时可以先记住一件事：模板代码只生成打印指令，平台代码只负责把字节写进打印机。
+
+## 包选择
+
+| 包 | 用途 |
+| --- | --- |
+| `@boxliy/nib` | 标准聚合包，导出 core、Boxliy/Aryten/Lin8inch 方言和图片能力。 |
+| `@nib/core` | `ConnectedDevice`、`writeTo()`、`WriteOptions`、接收源和查询分发。 |
+| `@nib/esc-boxliy`、`@nib/tspl-boxliy`、`@nib/cpcl-boxliy` | Boxliy ESC、TSPL、CPCL 指令构建器和响应解析器。 |
+| `@nib/esc`、`@nib/tspl`、`@nib/cpcl` | Aryten 兼容方言。 |
+| `@nib/esc-lin8inch`、`@nib/tspl-lin8inch` | Lin8inch 方言。 |
+| `@nib/bluetooth-ble-core` | BLE 特征值选择、UUID 匹配和 credit 流控。 |
+| `@nib/wechat-bluetooth-ble`、`@nib/uniapp-bluetooth-ble`、`@nib/taro-bluetooth-ble` | 微信、UniApp、Taro 的 BLE 适配。 |
+| `@nib/webusb` | 浏览器 WebUSB 连接。 |
+
+如果不确定从哪里开始，业务项目通常先用 `@boxliy/nib`；只有在需要拆包或裁剪能力时，再直接依赖底层模块。
+
+## ConnectedDevice 合约
+
+所有平台适配器最后都要提供 core 的 `ConnectedDevice`：
+
+```ts
+interface ConnectedDevice {
+  origin(): any
+  deviceName(): string
+  connectionState(): ConnectionState
+  disconnect(): Promise<void>
+  canRead(): boolean
+  write(data: Uint8Array): Promise<void>
+  read(options?: ReadOptions): Promise<Uint8Array>
+  notify(callback: (value: Uint8Array) => Promise<void>): void
+  flush(): void
+}
+```
+
+微信、小程序框架、WebUSB 或原生 App 的 API 可以完全不同，但只要包装成这个接口，同一套打印模板就可以复用。
+
+## 第一次打印
+
+推荐从 TSPL 标签示例开始，因为它清楚表达纸张尺寸、清空画布、放置文字和打印份数：
+
+```ts
+import { TsplAryten } from '@boxliy/nib'
+
+await TsplAryten.create()
+  .size(40, 30)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print()
+  .writeTo(device)
+```
+
+`writeTo(device)` 会把构建器里的字节写入设备，然后清空当前构建器。也可以先拿到字节，再手动写入：
+
+```ts
+import { WriteOptions, writeTo } from '@boxliy/nib'
+
+const data = TsplAryten.create()
+  .size(40, 30)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print()
+  .bytes()
+
+await writeTo(device, data, new WriteOptions(true, 512))
+```
+
+`writeTo()` 默认启用分片写入，默认分片大小是 `512` 字节。只有设备或平台 API 已经处理好分片时，才考虑关闭分片。
+
+## ESC 文本注意点
+
+不要把不同语言或不同方言的示例混用。当前 TypeScript 的 `EscBoxliy` 适合 ESC 命令、查询、图片等能力，但不是 Java/Swift 那种 `text('...')` 示例形态。普通文本内容可以选择 TSPL/CPCL 的 `text(...)` API，或按具体 ESC 方言支持的方法生成原始字节。
+
+```ts
+import { EscBoxliy } from '@boxliy/nib'
+
+const script = EscBoxliy.create()
+  .reset()
+  .feed(2)
+  .bytes()
+
+await writeTo(device, script)
+```
+
+## BLE credit 流控
+
+`@nib/bluetooth-ble-core` 提供两类 credit 策略：
+
+| API | 用途 |
+| --- | --- |
+| `BleLaneCreditFlowControlStrategy` | 默认的 lane-credit 策略，按 credit 和 MTU 分片写入。 |
+| `BleSignalCreditFlowControlStrategy` | signal-credit 策略，适合 credit 通知语义不同的设备。 |
+| `BleCreditOptions` | 配置服务 UUID、写入/读取/credit 特征值、初始 credit、MTU 和 fallback。 |
+| `selectBleCreditCharacteristicPair()` | 按 UUID 从服务列表中找到 write、read、credit 特征值。 |
+
+默认 UUID 是：
+
+| 项 | 默认值 |
+| --- | --- |
+| service | `FF00` |
+| write characteristic | `FF02` |
+| read characteristic | `FF01` |
+| credit characteristic | `FF03` |
+
+默认 lane-credit 初始 credit 是 `1`，初始 MTU 是 `20`，payload overhead 是 `3`。signal-credit 默认初始 credit 是 `0`，payload overhead 是 `0`。如果启用 `fallbackMode: 'bypass-write'`，credit 超时时可以退回普通写入；默认行为是失败。
+
+## 接收、查询和解析
+
+core 里常用的接收和查询类型是 `ReceiveSource`、`PollingReceiveSource`、`CallbackReceiveSource`、`NotifyReceiveSource`、`receiveSourceOf()`、`QueryDispatcher` 和 `PendingQuery`。
+
+Boxliy 方言提供响应解析器：
+
+| 方言 | 解析器 |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+查询状态时，先用方言构建器生成查询指令并写入设备，再把设备回包交给对应 parser。解析逻辑建议放在打印会话层，不要散落在 UI 组件里。
+
+<SdkApiReference sdk="typescript" locale="zh-hans" />
+
+## 实战建议
+
+- 先确认打印机支持 ESC、TSPL 还是 CPCL，再选构建器。
+- 平台蓝牙、USB、桥接 API 都放在 adapter 层，模板层只生成字节。
+- 每个模板都保留字节快照测试，避免改 UI 时改坏指令。
+- BLE 设备要在真机上验证 MTU、分片大小、credit 通知和断线重连。

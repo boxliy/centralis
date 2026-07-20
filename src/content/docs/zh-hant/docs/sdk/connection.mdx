@@ -1,0 +1,65 @@
+---
+title: 裝置連線
+description: SDK 如何把平台裝置轉接成統一的 connected device。
+sidebar:
+  order: 5
+---
+
+SDK 的列印範本不直接操作平台藍牙、USB 或網路 API。連線層負責掃描、授權、連線和訂閱通知，然後把平台物件包裝成 connected device；列印層只面對統一的寫入/讀取介面。
+
+這條邊界很重要：範本程式碼應該能在不知道“這是微信 BLE 還是 iOS CoreBluetooth”的情況下產生同一段 TSPL、ESC 或 CPCL 位元組。
+
+## 職責邊界
+
+| 層 | 負責什麼 |
+| --- | --- |
+| 平台 API | 掃描、授權、連線、斷開、發現 service/characteristic、訂閱通知。 |
+| Transport adapter | 把平台 API 包裝成 connected device，並隱藏平台回呼、權限和原始handle。 |
+| Session | 選擇範本、呼叫寫入管線、記錄日誌、處理狀態、逾時、重試和錯誤。 |
+| Template | 只產生 ESC、TSPL 或 CPCL 位元組，不處理藍牙權限、socket、USB endpoint 或網路重連。 |
+
+這樣拆分後，同一個列印範本可以複用到不同執行時。
+
+## connected device 合約
+
+不同語言的介面名字不同，但都表達同一件事：這是一個已經連線、可以寫入位元組，並在支援時讀取回包的物件。
+
+| 語言 | 核心介面 | 主要方法 |
+| --- | --- | --- |
+| TypeScript | `ConnectedDevice` | `write(data)`、`read(options)`、`notify(callback)`、`disconnect()`、`connectionState()` |
+| Dart | `ConnectedDevice<T>` | `write(data)`、`read(options)`、`disconnect()`、`connectionStateChanges()` |
+| Java | `Device` | `write(byte[])`、`read(timeoutMs)`、`close()`、`connected()` |
+| Objective-C | `BNDevice` | `writeData:error:`、`readWithTimeout:error:`、`closeWithError:` |
+| Swift | `NibDevice` | `write(_:)`、`read(maxLength:)`、`close()`、`connected` |
+
+如果平台沒有讀取能力，可以先只實現寫入路徑；需要狀態讀取時，再補齊 read、notify 或 receive source。
+
+## 常見連線類型
+
+| 類型 | 說明 |
+| --- | --- |
+| BLE | 行動端和小程式常見，需要處理權限、service/characteristic、分片、寫入模式和通知。 |
+| 經典藍牙 | Android 和部分桌面場景常見，重點是配對、socket 和斷線恢復。 |
+| USB / WebUSB | 適合瀏覽器、桌面或橋接場景，需要處理使用者授權和端點。 |
+| 網路 | 適合區域網路路或網路埠橋接裝置，需要處理連線逾時和重試。 |
+
+## BLE characteristic 注意事項
+
+BLE 連線成功不代表列印可用。你還需要確認：
+
+| 專案 | 說明 |
+| --- | --- |
+| service UUID | 只在允許的 service 中尋找列印 characteristic。 |
+| write characteristic | 必須支援 `write` 或 `writeWithoutResponse`。 |
+| read/notify characteristic | 狀態讀取或 credit 流控需要可讀、可通知，或與寫入 characteristic 合一。 |
+| 自動選擇策略 | TypeScript BLE core 支援按屬性選擇 write/notify/read，也支援指定 allowed write/read characteristic。正式環境建議記錄最終選中的 UUID。 |
+| 分片大小 | 常見保守值是 20 bytes；也可以根據 negotiated MTU 或平台 maximum write length 計算。 |
+| credit/flow control | 部分 BLE 裝置通過通知控制寫入節奏；沒有確認前不要假設可以無限連續寫。 |
+
+## 建議結構
+
+1. `connectPrinter()` 只負責回傳 connected device。
+2. `buildReceipt()` 或 `buildLabel()` 只負責產生指令。
+3. `printJob()` 負責連線、寫入、狀態讀取和錯誤處理。
+
+不要在頁面元件裡直接拼指令，也不要在列印範本裡寫藍牙權限邏輯。

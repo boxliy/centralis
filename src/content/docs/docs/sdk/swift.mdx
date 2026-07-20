@@ -1,0 +1,123 @@
+---
+title: Swift SDK
+description: NIB printer SDK integration guide for iOS and macOS Swift projects.
+sidebar:
+  order: 6
+---
+
+import SdkApiReference from '../../../../components/docs/SdkApiReference.astro';
+
+
+The Swift SDK is suitable for new native iOS and macOS projects. No confirmed `Package.swift` was found in the source, so this page does not name a specific SwiftPM product. Integrate the corresponding module according to the delivered package import method.
+
+## Module contents
+
+| Module | Common types |
+| --- | --- |
+| Core | `NibScript`, `NibDevice`, `NibPen`, `NibWritePipeline`, receive sources, and query dispatch. |
+| BLE | `NibBleCentral`, `NibBleDevice`, `NibBleConnectionOptions`, credit flow control. |
+| Boxliy dialects | `NibEscBoxliy`, `NibTsplBoxliy`, `NibCpclBoxliy`, and response parsers. |
+| Aryten dialects | `NibEscAryten`, `NibTsplAryten`, `NibCpclAryten`. |
+| Image helpers | Image preparation and print helpers available in the delivered version. |
+
+## Core objects
+
+`NibDevice` is the minimal device contract:
+
+```swift
+public protocol NibDevice: AnyObject {
+  var name: String { get }
+  var connected: Bool { get }
+
+  func write(_ data: Data) throws
+  func read(maxLength: Int) throws -> Data
+  func close() throws
+}
+```
+
+`NibScript` stores built `Data` and provides `length`, `string`, and `hexString`. `NibWritePipeline` handles chunked writes, with a default `chunkSize` of `512` bytes.
+
+## First print
+
+```swift
+let connectedDevice: NibDevice = /* BLE 或平台设备 */
+
+let script = NibTsplAryten()
+  .size(width: 40, height: 30)
+  .cls()
+  .text(x: 20, y: 20, content: "NIB SDK")
+  .print()
+  .script
+
+let pipeline = NibWritePipeline()
+try pipeline.write(script, to: connectedDevice)
+```
+
+The builder generates the script. `NibWritePipeline` writes the script to the device in chunks. To change chunk size:
+
+```swift
+let pipeline = NibWritePipeline(chunkSize: 185)
+try pipeline.write(script, to: connectedDevice)
+```
+
+## BLE integration
+
+The BLE entry point is `NibBleCentral`:
+
+```swift
+let central = NibBleCentral()
+try central.startDiscovery(timeout: 10)
+
+// 用户选择 discoveredDevices 里的目标设备后：
+let device = try central.connect(
+  selectedDevice,
+  options: NibBleConnectionOptions()
+)
+```
+
+`NibBleConnectionOptions` can configure `serviceUUIDs`, `writeCharacteristicUUID`, `readCharacteristicUUID`, connection and discovery timeouts, `writeMode`, `credit`, and custom `flowControl`. Write mode is `NibBleWriteMode.withResponse` or `.withoutResponse`, with `.withoutResponse` as the default.
+
+## BLE credit flow control
+
+Credit APIs include:
+
+| API | Purpose |
+| --- | --- |
+| `NibBleCreditOptions` | Configures whether credit is enabled, UUIDs, initial credit, MTU, strategy, and fallback. |
+| `NibBleLaneCreditWriter` | lane-credit strategy. |
+| `NibBleSignalCreditWriter` | signal-credit strategy. |
+| `NibBleFlowControlStrategy` | Custom flow-control strategy protocol. |
+
+Default UUIDs are `FF00` service, `FF02` write, `FF01` read, and `FF03` credit. lane-credit defaults to initial credit `1` and payload overhead `3`. signal-credit defaults to initial credit `0` and payload overhead `0`. `NibBleCreditOptions` is disabled by default unless `.signalCredit` is selected or `enabled: true` is set explicitly.
+
+## Receiving, querying, and dataStream
+
+Core receive types include `NibReceiveSource`, `NibCallbackReceiveSource`, `NibPollingReceiveSource`, and `NibReceiveListener`. Query types include `NibQueryDispatcher<Response>`, `NibPendingQuery<Response>`, and `NibResponseMatcher<Response>`.
+
+`NibReceiveSource` provides a `dataStream()` extension that can convert responses into `AsyncStream<Data>`:
+
+```swift
+for await data in device.receiveSource.dataStream() {
+  let response = NibTsplResponseParser.parse(query: .status, raw: data)
+  if response.isReady {
+    break
+  }
+}
+```
+
+Boxliy dialect parser names:
+
+| Dialect | Parser |
+| --- | --- |
+| ESC | `NibEscResponseParser` |
+| TSPL | `NibTsplResponseParser` |
+| CPCL | `NibCpclResponseParser` |
+
+<SdkApiReference sdk="swift" locale="root" />
+
+## Practical recommendations
+
+- Confirm whether the printer model supports ESC, TSPL, or CPCL before choosing a builder.
+- Keep BLE permission, scanning, reconnect, and App lifecycle logic in the connection layer.
+- The template layer should handle only paper size, coordinates, images, and text content.
+- Validate write mode, MTU, credit notifications, large images, and continuous printing on real hardware.

@@ -1,0 +1,71 @@
+---
+title: 状态读取
+description: 如何读取设备状态、查询回包和打印机信息。
+sidebar:
+  order: 7
+---
+
+状态读取用于知道打印机“现在怎么样”：是否在线、是否缺纸、是否开盖、是否过热、电量是多少、版本或序列号是什么。它和写入打印内容是两条路径：写入负责把指令发给设备，状态读取负责接收设备返回的数据并解析。
+
+不是所有打印机都支持所有状态。即使同样使用 ESC、TSPL 或 CPCL，不同固件也可能只支持其中一部分查询，或者只在特定异常发生时主动通知。
+
+## 一次查询怎么走
+
+一次典型状态查询会经过这条链路：
+
+1. 应用写入一条查询指令，或等待设备主动 notify。
+2. 平台传输层收到数据，交给 receive source。
+3. receive source 把原始 bytes 交给 query dispatcher。
+4. query dispatcher 用当前 pending query 的 response matcher 判断这包数据是不是要等的响应。
+5. 匹配成功后，把 raw bytes 交给对应方言的 parser。
+6. parser 返回 typed response，例如 status、battery、version、model、serial number、MAC 或 unknown。
+
+如果没有 pending query，收到的数据可以作为普通通知事件处理；如果有 pending query 但 matcher 一直匹配不到，查询会在超时后失败。
+
+## 接收来源
+
+NIB 的 receive source 只是“把设备回包送进 SDK”的入口，不负责解释业务含义。
+
+| 来源 | 说明 | 常见场景 |
+| --- | --- | --- |
+| callback / notify | 平台收到 BLE notify、系统回调或插件事件后主动推给 SDK。 | BLE notify、移动端蓝牙插件。 |
+| polling | SDK 循环调用 `read`，读到非空数据后通知 listener。 | 网络、USB、经典蓝牙或只有 read API 的设备。 |
+| device receive source | 设备对象自己暴露 receive source，session 直接接入。 | 平台封装已经处理好 notify/read 的情况。 |
+
+选择哪一种取决于平台 API 和设备能力。BLE 通常优先 notify；没有稳定 notify 时再考虑 polling 或显式 read。
+
+## pending query 和超时
+
+query dispatcher 一次只跟踪一个 pending query。发起查询时要提供 matcher 和 timeout：
+
+| 情况 | 结果 |
+| --- | --- |
+| matcher 返回 typed response | 查询完成，业务拿到解析后的结果。 |
+| matcher 返回空值 | 这包数据不是当前查询结果，继续等待。 |
+| matcher 抛出异常 | 当前查询失败。 |
+| receive source 报错或关闭 | 当前查询失败。 |
+| 超过 timeout | 当前查询失败，后续迟到响应不会自动完成这个查询。 |
+
+超时不一定代表打印机坏了。它可能表示设备不支持这个状态、notify 没订阅成功、查询指令和方言不匹配，或传输层没有把回包送进 receive source。
+
+## 方言解析覆盖
+
+NIB 目前覆盖 ESC、TSPL、CPCL 的常见响应解析：
+
+| 方言 | 常见解析内容 |
+| --- | --- |
+| ESC | 状态、电量、版本、型号、名称、序列号、MAC，以及部分主动事件。 |
+| TSPL | 状态、电量、版本、型号、名称、序列号、MAC。 |
+| CPCL | 状态帧、普通状态、电量、版本、型号、名称、序列号；不认识的 MAC 或特殊回包会保留为 unknown。 |
+
+typed response 中的 `unknown` 代表“收到了数据，但当前 parser 不认识这个格式”。这和 transport failure 不同：transport failure 是连接、read、notify 或 receive source 本身失败，通常不会得到可解析的 raw response。
+
+## 接入建议
+
+把状态读取放在 print session 或 device service 里，不要分散到 UI 组件中。接入时先确认三件事：
+
+1. 这台机器和固件是否真的支持要读的状态。
+2. 查询指令、response matcher 和 parser 是否属于同一个方言。
+3. receive source 是否已经启动，并且 notify/read 的数据能进入 dispatcher。
+
+用户界面可以显示“缺纸”“开盖”“低电量”等结果，但日志和排查应保留原始阶段：是没有回包、回包未知，还是连接/读取失败。

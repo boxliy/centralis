@@ -1,0 +1,128 @@
+---
+title: Dart SDK
+description: Flutter と Dart クライアント向けの NIB プリンター SDK 導入説明。
+sidebar:
+  order: 2
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Dart SDK は Flutter アプリに適しており、同じ印刷テンプレートを再利用したい Android、iOS、デスクトップクライアントにも適しています。初めて使うときは、コードを 2 層に分けることをおすすめします。接続層はデバイスの取得を担当し、テンプレート層は ESC、TSPL、CPCL 命令の生成を担当します。
+
+## パッケージ選択
+
+| パッケージ | 用途 |
+| --- | --- |
+| `nib` | 標準集約パッケージ。core、Boxliy/Aryten/Lin8inch 方言、画像機能を export します。 |
+| `nib_core` | `ConnectedDevice`、`WritePipeline`、`ChunkPolicy`、受信ソース、クエリ分配。 |
+| `nib_esc_boxliy`、`nib_tspl_boxliy`、`nib_cpcl_boxliy` | Boxliy 方言ビルダーとレスポンス parser。 |
+| `nib_esc`、`nib_tspl`、`nib_cpcl` | Aryten 互換方言。 |
+| `nib_esc_lin8inch`、`nib_tspl_lin8inch` | Lin8inch 方言。 |
+| `nib_bluetooth_ble` | BLE スキャン、接続、characteristic 選択、credit フロー制御。 |
+| `nib_bluetooth_classic` | クラシック Bluetooth プリンター接続。 |
+
+正式なプロジェクトでは、通常 `package:nib/nib.dart` から始めます。モジュール単位で配布する必要がある場合にだけ、下位パッケージを直接使います。
+
+## ConnectedDevice 契約
+
+実プリンターへ接続した後は、`ConnectedDevice<T>` にラップする必要があります。
+
+```dart
+abstract class ConnectedDevice<T> {
+  T origin();
+  String? deviceName();
+  String? deviceMac();
+  ConnectionState connectionState();
+  Stream<ConnectionState> connectionStateChanges();
+  Future<void> disconnect();
+  Future<void> write(Uint8List data, {bool sendDone = true});
+  Stream<Uint8List> read(ReadOptions? options);
+}
+```
+
+BLE、クラシック Bluetooth、テストデバイスのいずれでも、この契約を実装すれば同じビルダーと書き込みパイプラインを使えます。
+
+## 初回印刷
+
+次のサンプルは標準パッケージ内の Aryten TSPL ビルダーを使います。`NullDevice` はローカルテストにだけ適しています。実プロジェクトでは、BLE またはクラシック Bluetooth 接続が返すデバイスに置き換えてください。
+
+```dart
+import 'package:nib/nib.dart';
+
+final device = NullDevice.instance;
+
+final printer = TsplAryten(device)
+  ..size(40, 30)
+  ..cls()
+  ..text(x: 20, y: 20, content: 'NIB SDK')
+  ..print();
+
+await printer.flush();
+```
+
+`flush()` はビルダーの現在のバイト列を、ビルダーにバインドされたデバイスへ書き込みます。より細かい進捗、タイムアウト、分割制御が必要な場合は、`WritePipeline` を直接使います。
+
+```dart
+final result = await WritePipeline.write(
+  device,
+  printer.bytes(),
+  options: WriteOptions(
+    chunkPolicy: ChunkPolicy.fixed(1024),
+  ),
+);
+
+if (!result.success) {
+  // 根据 cancelled、timedOut、backpressured 做业务处理。
+}
+```
+
+core のデフォルト分割サイズは `1024` バイトです。つまり `WriteOptions()` はデフォルトで `ChunkPolicy.fixed(NibDefaults.chunkSize)` を使います。
+
+## BLE 分割と credit
+
+通常の BLE 書き込みでは、MTU に基づいて分割を制御する必要があります。
+
+```dart
+final flow = BleFlowController.forNegotiatedMtu(185);
+
+await WritePipeline.write(
+  device,
+  printer.bytes(),
+  options: flow.writeOptions,
+);
+```
+
+`nib_bluetooth_ble` は credit フロー制御も提供します。
+
+| API | 用途 |
+| --- | --- |
+| `BleCreditOptions` | credit を有効にし、UUID、戦略、初期 credit、MTU、fallback を設定します。 |
+| `BleLaneCreditFlowControlStrategy` | lane-credit 戦略。デフォルト初期 credit は `1`。 |
+| `BleSignalCreditFlowControlStrategy` | signal-credit 戦略。デフォルト初期 credit は `0`。 |
+| `selectBleCreditCharacteristicPair()` | service、write、read、credit characteristic の組み合わせを見つけます。 |
+
+デフォルト UUID は `FF00` service、`FF02` write、`FF01` read、`FF03` credit です。デフォルト初期 MTU は `20` です。lane-credit のデフォルト payload overhead は `3`、signal-credit のデフォルト payload overhead は `0` です。`BleCreditOptions.enabled` のデフォルトは `false` であり、デバイスが credit 通知を必要とする場合だけ有効にします。
+
+## 受信、クエリ、解析
+
+core の受信とクエリの型には、`ReceiveSource`、`StreamReceiveSource`、`ReceiveSources.fromDevice()`、`QueryDispatcher<T>`、`PendingQuery<T>` があります。`ConnectedDevice` には `receiveSource()` 拡張メソッドもあり、`read()` stream を受信ソースにラップできます。
+
+Boxliy 方言は次の parser を提供します。
+
+| 方言 | parser |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+`EscResponseParser` と `TsplResponseParser` では `parse(query, data)` をよく使います。CPCL にはクエリ解析に加えて、ステータスフレーム用の `parseEvent(...)` もあります。
+
+<SdkApiReference sdk="dart" locale="ja" />
+
+## 実践上のおすすめ
+
+- 機種に基づいて ESC、TSPL、CPCL のどれかを確認し、1 つのテンプレート内で複数の方言を混用しないでください。
+- 接続、権限、再接続はサービス層に置きます。印刷テンプレートは紙幅、座標、内容だけを扱います。
+- ラベル印刷では、先にミリメートルサイズ、DPI、ギャップ、濃度を確認してからテンプレートを書きます。
+- BLE の実機テストでは、大きな画像、連続印刷、切断後の再接続、credit 通知をカバーしてください。

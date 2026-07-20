@@ -1,0 +1,58 @@
+---
+title: 印表機 SDK
+description: 面向應用、驅動與裝置協作的多語言印表機 SDK 接入指南。
+sidebar:
+  order: 1
+---
+
+印表機 SDK 是應用程式接入 NIB 列印能力的入口。它不替你“猜”印表機能力，而是把你已經確認的裝置、指令集和連線方式，整理成一套跨語言一致的列印流程。
+
+先記住這個心智模型：
+
+```text
+指令构建器 -> 脚本/字节 -> connected device -> 分片/流控写入 -> 可选状态读取
+```
+
+也就是說，範本程式碼只負責產生 ESC、TSPL 或 CPCL 位元組；連線程式碼負責取得已經連線好的裝置物件；寫入管線再把位元組按目前傳輸方式寫到裝置。狀態讀取是可選能力，只有裝置、指令集和連線層都支援時才接入。
+
+## 閱讀路徑
+
+| 目標 | 先看 |
+| --- | --- |
+| 第一次接入 SDK | [快速開始](./quickstart/) |
+| 準備專案接入資訊 | [接入前確認](./prerequisites/) |
+| 理解 SDK 怎麼分層 | [SDK 架構](./architecture/) |
+| 處理藍牙、USB、網路或平台橋接 | [裝置連線](./connection/) |
+| 處理 BLE 分片、credit 和寫入節奏 | [寫入與流控](./flow-control/) |
+| 讀取電量、缺紙、版本或查詢回包 | [狀態讀取](./status/) |
+| 處理連線失敗、寫入失敗和裝置無回應 | [錯誤處理](./errors/) |
+
+第一次接入建議按這個順序讀：先看 [接入前確認](./prerequisites/) 補齊事實，再用 [快速開始](./quickstart/) 列印一段文字，然後看 [裝置連線](./connection/) 把平台連線轉接成 connected device。等能穩定列印後，再進入 [寫入與流控](./flow-control/) 和 [狀態讀取](./status/)。
+
+## 選擇順序
+
+選擇包和範例前，先按業務事實從外到內確定四件事：
+
+1. 印表機 Family：Boxliy、Aryten 或 Lin8inch。
+2. 指令族：ESC、TSPL 或 CPCL，以實際機器韌體支援為準。
+3. Transport：BLE、經典藍牙、USB / WebUSB、網路，或小程式 / 跨端框架橋接。
+4. 語言套件：TypeScript、Dart、Java、Objective-C 或 Swift。
+
+這個順序能避免一個常見誤區：先照著某個語言範例寫完程式碼，才發現機器不是這個指令族，或者目前平台取得不到範例所需的 BLE 特徵值。
+
+## 語言接入
+
+| 語言 | 常見執行環境 | connected device 形態 | 文件 |
+| --- | --- | --- | --- |
+| TypeScript | Web、Node、小程式、Taro、UniApp、WebUSB | `ConnectedDevice`，提供 `write()`、可選 `read()` / `notify()` | [TypeScript SDK](./typescript/) |
+| Dart | Flutter、行動端、跨平台客戶端 | `ConnectedDevice<T>`，提供 `write()`、`read()` stream 和連線狀態 | [Dart SDK](./dart/) |
+| Java | Android、JVM 工具、網路或藍牙接入 | `Device`，提供 `write()`、`read()`、`close()` | [Java SDK](./java/) |
+| Objective-C | 現有 iOS 專案、混編專案 | `BNDevice`，提供 `writeData:error:`、`readWithTimeout:error:` | [Objective-C SDK](./objective-c/) |
+| Swift | iOS、macOS、CoreBluetooth | `NibDevice`，提供 `write(_:)`、`read(maxLength:)` | [Swift SDK](./swift/) |
+
+## 不在本組展開的內容
+
+| 內容 | 目前位置 |
+| --- | --- |
+| ESC、TSPL、CPCL 的具體指令 | 左側“指令”欄目。 |
+| 文字、條碼、QR Code、圖片等列印能力 | 後續單獨整理。 |

@@ -1,0 +1,14 @@
+---
+title: ESC 指令
+description: ESC 协议下的 Boxliy、Aryten、Lin8inch 指令 Family。
+sidebar:
+  order: 2
+---
+
+ESC 通常用于小票式或连续纸热敏输出。NIB 里的 ESC 指令以 `EscBoxliy` 为基础，Aryten 和 Lin8inch 在此基础上增加机型相关能力。
+
+| Family | 构建器 | 说明 |
+| --- | --- | --- |
+| Boxliy | `EscBoxliy` | 基础走纸、对齐、切纸、图片、纸张和设备查询。 |
+| Aryten | `EscAryten` | 继承 Boxliy，增加 Q3 纸张类型指令。 |
+| Lin8inch | `EscLin8inch` | 继承 Boxliy，增加 8 寸机器的浓度、介质、灰度和配网扩展。 |

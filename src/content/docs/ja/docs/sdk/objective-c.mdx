@@ -1,0 +1,117 @@
+---
+title: Objective-C SDK
+description: iOS Objective-C プロジェクト向けの NIB プリンター SDK 導入説明。
+sidebar:
+  order: 5
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Objective-C SDK は、既存の iOS プロジェクト、Objective-C / Swift 混在プロジェクト、framework または `Nib.xcframework` 形式で配布されるプロジェクトに適しています。標準の入口ヘッダーは次のとおりです。
+
+```objc
+#import <Nib/Nib.h>
+```
+
+## Framework 内容
+
+| モジュール | よく使う型 |
+| --- | --- |
+| Core | `BNDevice`、`BNScript`、`BNWritePipeline`、`BNReceiveSource`、`BNQueryDispatcher`。 |
+| BLE | `BNBleCentral`、`BNBleDevice`、`BNBleConnectionOptions`、credit フロー制御。 |
+| Boxliy dialects | `BNEscBoxliy`、`BNTsplBoxliy`、`BNCpclBoxliy` とレスポンス parser。 |
+| Aryten dialects | `BNEscAryten`、`BNTsplAryten`、`BNCpclAryten`。 |
+| Lin8inch dialects | `BNEscLin8inch`、`BNTsplLin8inch`。 |
+| Image helpers | 配布パッケージで利用可能な画像準備と印刷補助機能。 |
+
+## Core オブジェクト
+
+`BNDevice` は最小デバイス契約です。
+
+```objc
+@protocol BNDevice <NSObject>
+
+@property(nonatomic, copy, readonly) NSString *name;
+@property(nonatomic, assign, readonly) BOOL connected;
+
+- (BOOL)writeData:(NSData *)data error:(NSError **)error;
+- (NSData *)readWithTimeout:(NSTimeInterval)timeout error:(NSError **)error;
+- (BOOL)closeWithError:(NSError **)error;
+
+@end
+```
+
+`BNScript` は構築済みの `NSData` を保持し、`BNWritePipeline` は `chunkSize` に従って `BNDevice` へ分割書き込みします。
+
+## 初回印刷
+
+```objc
+#import <Nib/Nib.h>
+
+id<BNDevice> connectedDevice = /* BLE 或平台设备 */;
+
+BNTsplAryten *printer = [[BNTsplAryten alloc] init];
+BNScript *script = [[[[[printer sizeWithWidth:40 height:30]
+    cls]
+    textAtX:20 y:20 content:@"NIB SDK"]
+    print]
+    script];
+
+BNWritePipeline *pipeline = [[BNWritePipeline alloc] initWithDevice:connectedDevice chunkSize:512];
+
+NSError *error = nil;
+BOOL ok = [pipeline writeScript:script error:&error];
+```
+
+デバイスが ESC のレシート形式出力を使う場合は、`BNEscBoxliy` で `BNScript` を構築することもできます。どの方言を使う場合でも、実際の書き込みは `BNDevice` または `BNWritePipeline` に任せます。
+
+## BLE 導入
+
+BLE の入口は `BNBleCentral` です。よくある流れは次のとおりです。
+
+1. `BNBleCentral` を作成します。
+2. `startDiscoveryWithDisconnectConnectedDevice:useMac:timeout:serviceUUIDs:discovered:error:` を呼び出してスキャンします。
+3. `BNBleDiscoveredDevice` を選びます。
+4. `BNBleConnectionOptions` を作成し、デバイスに合わせて service、write、read、write mode、credit を設定します。
+5. `connectDiscoveredDevice:options:completion:` を呼び出して `BNBleDevice` を取得します。
+6. 方言ビルダーでスクリプトを生成します。
+7. `BNWritePipeline` または `BNBleDevice` で書き込みます。
+
+`BNBleConnectionOptions` では `writeMode` を設定できます。これは `BNBleWriteMode` の with response / without response 書き込みモードに対応します。
+
+## BLE credit フロー制御
+
+credit API は `BNBleCredit.h` にあります。
+
+| API | 用途 |
+| --- | --- |
+| `BNBleCreditOptions` | credit の有効化、UUID、初期 credit、MTU、戦略、fallback を設定します。 |
+| `BNBleLaneCreditWriter` | lane-credit writer。 |
+| `BNBleSignalCreditWriter` | signal-credit writer。 |
+| `BNBleFlowControlStrategy` | カスタムフロー制御戦略プロトコル。 |
+
+`[BNBleCreditOptions defaultOptions]` は `FF00` service、`FF02` write、`FF01` read、`FF03` credit notify を使い、初期 credit は `1`、初期 MTU は `20`、payload overhead は `3` です。通常の `BNBleConnectionOptions` はデフォルトで credit を有効にしません。デバイスが credit 通知を必要とする場合だけ `creditOptions` を設定します。
+
+## 受信、クエリ、解析
+
+Core の受信とクエリの型には、`BNReceiveSource`、`BNCallbackReceiveSource`、`BNPollingReceiveSource`、`BNReceiveListener`、`BNQueryDispatcher`、`BNPendingQuery`、`BNResponseMatcher` があります。BLE デバイスも `receiveSource` を公開しており、通知応答に利用できます。
+
+Boxliy 方言 parser 名は次のとおりです。
+
+| 方言 | parser |
+| --- | --- |
+| ESC | `BNEscResponseParser` |
+| TSPL | `BNTsplResponseParser` |
+| CPCL | `BNCpclResponseParser` |
+
+「クエリ命令を送信し、応答を待ち、parser を呼び出す」処理は印刷セッション層に担当させ、UI 層は結果表示だけを行うことをおすすめします。
+
+<SdkApiReference sdk="objective-c" locale="ja" />
+
+## 実践上のおすすめ
+
+- 実機で Bluetooth 権限、前後景切り替え、切断後の再接続、連続印刷を検証してください。
+- 大きな画像とラベルテンプレートは、どちらも `BNWritePipeline` で分割書き込みしてください。
+- UUID、write mode、credit 戦略は、具体的な機種に合わせて確認する必要があります。
+- Objective-C と Swift の混在時は、テンプレート層を通常の SDK 型のまま保ち、ページライフサイクルへ直接依存しないようにしてください。

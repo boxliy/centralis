@@ -1,0 +1,14 @@
+---
+title: ESC コマンド
+description: ESC の Boxliy、Aryten、Lin8inch command families。
+sidebar:
+  order: 2
+---
+
+ESC は receipt-style または continuous thermal output によく使われます。NIB では `EscBoxliy` を基礎に、Aryten と Lin8inch が機種別拡張を追加します。
+
+| Family | Builder | Notes |
+| --- | --- | --- |
+| Boxliy | `EscBoxliy` | Feed, alignment, cut, image, paper, and device-query commands. |
+| Aryten | `EscAryten` | Inherits Boxliy and adds Q3 paper-type commands. |
+| Lin8inch | `EscLin8inch` | Inherits Boxliy and adds 8-inch density, media, grayscale, provisioning, and consumable extensions. |

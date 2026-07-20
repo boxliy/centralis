@@ -1,0 +1,128 @@
+---
+title: Dart SDK
+description: NIB printer SDK integration guide for Flutter and Dart clients.
+sidebar:
+  order: 2
+---
+
+import SdkApiReference from '../../../../components/docs/SdkApiReference.astro';
+
+
+The Dart SDK is suitable for Flutter applications and for Android, iOS, and desktop clients that want to reuse one set of print templates. When starting, split the code into two layers: the connection layer obtains the device, and the template layer generates ESC, TSPL, or CPCL commands.
+
+## Package selection
+
+| Package | Purpose |
+| --- | --- |
+| `nib` | Standard aggregate package that exports core, Boxliy/Aryten/Lin8inch dialects, and image capabilities. |
+| `nib_core` | `ConnectedDevice`, `WritePipeline`, `ChunkPolicy`, receive sources, and query dispatch. |
+| `nib_esc_boxliy`, `nib_tspl_boxliy`, `nib_cpcl_boxliy` | Boxliy dialect builders and response parsers. |
+| `nib_esc`, `nib_tspl`, `nib_cpcl` | Aryten-compatible dialects. |
+| `nib_esc_lin8inch`, `nib_tspl_lin8inch` | Lin8inch dialects. |
+| `nib_bluetooth_ble` | BLE scanning, connection, characteristic selection, and credit flow control. |
+| `nib_bluetooth_classic` | Classic Bluetooth printer connection. |
+
+Production projects usually start with `package:nib/nib.dart`. Use lower-level packages directly only when modules need to be delivered separately.
+
+## ConnectedDevice contract
+
+After connecting a real printer, wrap it as `ConnectedDevice<T>`:
+
+```dart
+abstract class ConnectedDevice<T> {
+  T origin();
+  String? deviceName();
+  String? deviceMac();
+  ConnectionState connectionState();
+  Stream<ConnectionState> connectionStateChanges();
+  Future<void> disconnect();
+  Future<void> write(Uint8List data, {bool sendDone = true});
+  Stream<Uint8List> read(ReadOptions? options);
+}
+```
+
+BLE, classic Bluetooth, and test devices can all use the same builders and write pipeline as long as they implement this contract.
+
+## First print
+
+The following example uses the Aryten TSPL builder from the standard package. `NullDevice` is only for local testing. In real projects, replace it with a device returned by a BLE or classic Bluetooth connection.
+
+```dart
+import 'package:nib/nib.dart';
+
+final device = NullDevice.instance;
+
+final printer = TsplAryten(device)
+  ..size(40, 30)
+  ..cls()
+  ..text(x: 20, y: 20, content: 'NIB SDK')
+  ..print();
+
+await printer.flush();
+```
+
+`flush()` writes the current builder bytes to the device it is bound to. For finer progress, timeout, or chunk control, use `WritePipeline` directly:
+
+```dart
+final result = await WritePipeline.write(
+  device,
+  printer.bytes(),
+  options: WriteOptions(
+    chunkPolicy: ChunkPolicy.fixed(1024),
+  ),
+);
+
+if (!result.success) {
+  // 根据 cancelled、timedOut、backpressured 做业务处理。
+}
+```
+
+The core default chunk size is `1024` bytes, meaning `WriteOptions()` uses `ChunkPolicy.fixed(NibDefaults.chunkSize)` by default.
+
+## BLE chunking and credit
+
+Normal BLE writes usually need chunking based on MTU:
+
+```dart
+final flow = BleFlowController.forNegotiatedMtu(185);
+
+await WritePipeline.write(
+  device,
+  printer.bytes(),
+  options: flow.writeOptions,
+);
+```
+
+`nib_bluetooth_ble` also provides credit flow control:
+
+| API | Purpose |
+| --- | --- |
+| `BleCreditOptions` | Enables credit and configures UUIDs, strategy, initial credit, MTU, and fallback. |
+| `BleLaneCreditFlowControlStrategy` | lane-credit strategy, with default initial credit `1`. |
+| `BleSignalCreditFlowControlStrategy` | signal-credit strategy, with default initial credit `0`. |
+| `selectBleCreditCharacteristicPair()` | Finds the service, write, read, and credit characteristic combination. |
+
+Default UUIDs are `FF00` service, `FF02` write, `FF01` read, and `FF03` credit. The default initial MTU is `20`. lane-credit defaults to payload overhead `3`, and signal-credit defaults to payload overhead `0`. `BleCreditOptions.enabled` defaults to `false`; enable it only when the device requires credit notifications.
+
+## Receiving, querying, and parsing
+
+Core receive and query types include `ReceiveSource`, `StreamReceiveSource`, `ReceiveSources.fromDevice()`, `QueryDispatcher<T>`, and `PendingQuery<T>`. `ConnectedDevice` also has a `receiveSource()` extension method that wraps the `read()` stream as a receive source.
+
+Boxliy dialects provide these parsers:
+
+| Dialect | Parser |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+`EscResponseParser` and `TsplResponseParser` commonly use `parse(query, data)`. CPCL supports both query parsing and `parseEvent(...)` for status frames.
+
+<SdkApiReference sdk="dart" locale="root" />
+
+## Practical recommendations
+
+- Confirm ESC, TSPL, or CPCL by printer model before mixing dialects in a template.
+- Keep connection, permissions, and reconnect logic in the service layer. Print templates should only care about paper width, coordinates, and content.
+- For label printing, confirm millimeter size, DPI, gap, and density before writing templates.
+- Real BLE hardware tests should cover large images, continuous printing, reconnects, and credit notifications.

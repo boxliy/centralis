@@ -1,0 +1,25 @@
+---
+interface Props {
+	title: string;
+	scene?: string;
+	preview?: string;
+}
+
+const { title, scene = '/excalidraw/nib-sdk-architecture.excalidraw', preview = '/excalidraw/nib-sdk-architecture.svg' } = Astro.props;
+const sceneUrl = new URL(scene, Astro.url).toString();
+const previewUrl = new URL(preview, Astro.url).toString();
+const excalidrawUrl = 'https://excalidraw.com/';
+---
+
+<figure class="excalidraw-embed">
+	<a class="excalidraw-preview" href={sceneUrl} target="_blank" rel="noreferrer" aria-label={`${title} editable Excalidraw source`}>
+		<img src={previewUrl} alt={title} loading="lazy" />
+	</a>
+	<figcaption>
+		<span>{title}</span>
+		<span class="excalidraw-actions">
+			<a href={sceneUrl} target="_blank" rel="noreferrer">Download .excalidraw</a>
+			<a href={excalidrawUrl} target="_blank" rel="noreferrer">Open Excalidraw</a>
+		</span>
+	</figcaption>
+</figure>

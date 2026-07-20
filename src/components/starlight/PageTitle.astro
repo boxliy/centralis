@@ -1,0 +1,9 @@
+---
+const { starlightRoute } = Astro.locals;
+const id = starlightRoute.entry.id.replace(/^(zh-hans|zh-hant|ko|ja)\//, '');
+const kicker = id === 'docs' ? 'Archive / Home' : id.replace('docs/', '').replace('/', ' / ');
+---
+
+<div class="doc-kicker">{kicker}</div>
+<h2 id="_top">{starlightRoute.entry.data.title}</h2>
+{starlightRoute.entry.data.description && <p class="doc-lead">{starlightRoute.entry.data.description}</p>}

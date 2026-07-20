@@ -1,0 +1,319 @@
+---
+const { starlightRoute } = Astro.locals;
+const locale = starlightRoute.locale || 'root';
+const prefix = locale === 'root' ? '' : `/${locale}`;
+const currentSlug = starlightRoute.entry.id.replace(/^(zh-hans|zh-hant|ko|ja)\//, '');
+
+function href(slug: string) {
+	return `${prefix}/${slug}`.replace(/\/+/g, '/').replace(/\/?$/, '/');
+}
+
+const labels = {
+	root: {
+		head: 'Document navigation',
+		start: 'Start',
+		home: 'Document home',
+		sdk: 'Printer SDK',
+		gettingStarted: 'Getting Started',
+		sdkHome: 'SDK Overview',
+		quickstart: 'Quick Start',
+		prerequisites: 'Before You Start',
+		coreConcepts: 'Core Concepts',
+		connection: 'Device Connection',
+		status: 'Status Reading',
+		errors: 'Error Handling',
+		languageIntegration: 'Language Integration',
+		dart: 'Dart SDK',
+		typescript: 'TypeScript SDK',
+		java: 'Java SDK',
+		objectiveC: 'Objective-C SDK',
+		swift: 'Swift SDK',
+		architecture: 'SDK Architecture',
+		flowControl: 'Writing and Flow Control',
+		commands: 'Commands',
+		commandsHome: 'Command Overview',
+		esc: 'ESC Commands',
+		escHome: 'ESC Overview',
+		tspl: 'TSPL Commands',
+		tsplHome: 'TSPL Overview',
+		cpcl: 'CPCL Commands',
+		cpclHome: 'CPCL Overview',
+		boxliy: 'Boxliy',
+		aryten: 'Aryten',
+		lin8inch: 'Lin8inch',
+		driver: 'Drivers',
+		driverHome: 'Driver Overview',
+		firmware: 'Firmware',
+		firmwareHome: 'Firmware Overview',
+		collapse: 'Fold',
+		expand: 'Expand',
+	},
+	'zh-hans': {
+		head: '文档导航',
+		start: '开始',
+		home: '文档首页',
+		sdk: '打印机 SDK',
+		gettingStarted: '入门',
+		sdkHome: 'SDK 概览',
+		quickstart: '快速开始',
+		prerequisites: '接入前确认',
+		coreConcepts: '核心概念',
+		connection: '设备连接',
+		status: '状态读取',
+		errors: '错误处理',
+		languageIntegration: '语言接入',
+		dart: 'Dart SDK',
+		typescript: 'TypeScript SDK',
+		java: 'Java SDK',
+		objectiveC: 'Objective-C SDK',
+		swift: 'Swift SDK',
+		architecture: 'SDK 架构',
+		flowControl: '写入与流控',
+		commands: '指令',
+		commandsHome: '指令总览',
+		esc: 'ESC 指令',
+		escHome: 'ESC 概览',
+		tspl: 'TSPL 指令',
+		tsplHome: 'TSPL 概览',
+		cpcl: 'CPCL 指令',
+		cpclHome: 'CPCL 概览',
+		boxliy: 'Boxliy',
+		aryten: 'Aryten',
+		lin8inch: 'Lin8inch',
+		driver: '驱动',
+		driverHome: '驱动概览',
+		firmware: '固件',
+		firmwareHome: '固件概览',
+		collapse: '收起',
+		expand: '展开',
+	},
+	'zh-hant': {
+		head: '文檔導航',
+		start: '開始',
+		home: '文檔首頁',
+		sdk: '打印機 SDK',
+		gettingStarted: '入門',
+		sdkHome: 'SDK 概覽',
+		quickstart: '快速開始',
+		prerequisites: '接入前確認',
+		coreConcepts: '核心概念',
+		connection: '設備連接',
+		status: '狀態讀取',
+		errors: '錯誤處理',
+		languageIntegration: '語言接入',
+		dart: 'Dart SDK',
+		typescript: 'TypeScript SDK',
+		java: 'Java SDK',
+		objectiveC: 'Objective-C SDK',
+		swift: 'Swift SDK',
+		architecture: 'SDK 架構',
+		flowControl: '寫入與流控',
+		commands: '指令',
+		commandsHome: '指令總覽',
+		esc: 'ESC 指令',
+		escHome: 'ESC 概覽',
+		tspl: 'TSPL 指令',
+		tsplHome: 'TSPL 概覽',
+		cpcl: 'CPCL 指令',
+		cpclHome: 'CPCL 概覽',
+		boxliy: 'Boxliy',
+		aryten: 'Aryten',
+		lin8inch: 'Lin8inch',
+		driver: '驅動',
+		driverHome: '驅動概覽',
+		firmware: '固件',
+		firmwareHome: '固件概覽',
+		collapse: '收起',
+		expand: '展開',
+	},
+	ko: {
+		head: '문서 탐색',
+		start: '시작',
+		home: '문서 홈',
+		sdk: '프린터 SDK',
+		gettingStarted: '시작하기',
+		sdkHome: 'SDK 개요',
+		quickstart: '빠른 시작',
+		prerequisites: '연동 전 확인',
+		coreConcepts: '핵심 개념',
+		connection: '장치 연결',
+		status: '상태 읽기',
+		errors: '오류 처리',
+		languageIntegration: '언어 연동',
+		dart: 'Dart SDK',
+		typescript: 'TypeScript SDK',
+		java: 'Java SDK',
+		objectiveC: 'Objective-C SDK',
+		swift: 'Swift SDK',
+		architecture: 'SDK 구조',
+		flowControl: '쓰기와 흐름 제어',
+		commands: '명령',
+		commandsHome: '명령 개요',
+		esc: 'ESC 명령',
+		escHome: 'ESC 개요',
+		tspl: 'TSPL 명령',
+		tsplHome: 'TSPL 개요',
+		cpcl: 'CPCL 명령',
+		cpclHome: 'CPCL 개요',
+		boxliy: 'Boxliy',
+		aryten: 'Aryten',
+		lin8inch: 'Lin8inch',
+		driver: '드라이버',
+		driverHome: '드라이버 개요',
+		firmware: '펌웨어',
+		firmwareHome: '펌웨어 개요',
+		collapse: '접기',
+		expand: '펼치기',
+	},
+	ja: {
+		head: 'ドキュメントナビ',
+		start: '開始',
+		home: 'ドキュメントホーム',
+		sdk: 'プリンター SDK',
+		gettingStarted: '入門',
+		sdkHome: 'SDK 概要',
+		quickstart: 'クイックスタート',
+		prerequisites: '導入前確認',
+		coreConcepts: '中核概念',
+		connection: 'デバイス接続',
+		status: '状態読み取り',
+		errors: 'エラー処理',
+		languageIntegration: '言語別導入',
+		dart: 'Dart SDK',
+		typescript: 'TypeScript SDK',
+		java: 'Java SDK',
+		objectiveC: 'Objective-C SDK',
+		swift: 'Swift SDK',
+		architecture: 'SDK 構造',
+		flowControl: '書き込みとフロー制御',
+		commands: 'コマンド',
+		commandsHome: 'コマンド概要',
+		esc: 'ESC コマンド',
+		escHome: 'ESC 概要',
+		tspl: 'TSPL コマンド',
+		tsplHome: 'TSPL 概要',
+		cpcl: 'CPCL コマンド',
+		cpclHome: 'CPCL 概要',
+		boxliy: 'Boxliy',
+		aryten: 'Aryten',
+		lin8inch: 'Lin8inch',
+		driver: 'ドライバー',
+		driverHome: 'ドライバー概要',
+		firmware: 'ファームウェア',
+		firmwareHome: 'ファームウェア概要',
+		collapse: '折り畳む',
+		expand: '展開',
+	},
+};
+const t = labels[locale as keyof typeof labels] ?? labels.root;
+const groups = [
+	{ label: t.start, items: [{ label: t.home, slug: 'docs', code: 'HOME' }] },
+	{
+		label: t.sdk,
+		items: [
+			{ section: t.gettingStarted },
+			{ label: t.sdkHome, slug: 'docs/sdk', code: 'SDK' },
+			{ label: t.quickstart, slug: 'docs/sdk/quickstart', code: 'GO' },
+			{ label: t.prerequisites, slug: 'docs/sdk/prerequisites', code: 'CHECK' },
+			{ section: t.coreConcepts },
+			{ label: t.architecture, slug: 'docs/sdk/architecture', code: 'ARCH' },
+			{ label: t.connection, slug: 'docs/sdk/connection', code: 'CONN' },
+			{ label: t.flowControl, slug: 'docs/sdk/flow-control', code: 'FLOW' },
+			{ label: t.status, slug: 'docs/sdk/status', code: 'STATE' },
+			{ label: t.errors, slug: 'docs/sdk/errors', code: 'ERR' },
+			{ section: t.languageIntegration },
+			{ label: t.dart, slug: 'docs/sdk/dart', code: 'DART' },
+			{ label: t.typescript, slug: 'docs/sdk/typescript', code: 'TS' },
+			{ label: t.java, slug: 'docs/sdk/java', code: 'JVM' },
+			{ label: t.objectiveC, slug: 'docs/sdk/objective-c', code: 'OBJ-C' },
+			{ label: t.swift, slug: 'docs/sdk/swift', code: 'SWIFT' },
+		],
+	},
+	{
+		label: t.commands,
+		items: [
+			{ label: t.commandsHome, slug: 'docs/commands', code: 'CMD' },
+			{ section: t.esc },
+			{ label: t.escHome, slug: 'docs/commands/esc', code: 'ESC' },
+			{ label: t.boxliy, slug: 'docs/commands/esc/boxliy', code: 'BOX', child: true },
+			{ label: t.aryten, slug: 'docs/commands/esc/aryten', code: 'ARY', child: true },
+			{ label: t.lin8inch, slug: 'docs/commands/esc/lin8inch', code: '8IN', child: true },
+			{ section: t.tspl },
+			{ label: t.tsplHome, slug: 'docs/commands/tspl', code: 'TSPL' },
+			{ label: t.boxliy, slug: 'docs/commands/tspl/boxliy', code: 'BOX', child: true },
+			{ label: t.aryten, slug: 'docs/commands/tspl/aryten', code: 'ARY', child: true },
+			{ label: t.lin8inch, slug: 'docs/commands/tspl/lin8inch', code: '8IN', child: true },
+			{ section: t.cpcl },
+			{ label: t.cpclHome, slug: 'docs/commands/cpcl', code: 'CPCL' },
+			{ label: t.boxliy, slug: 'docs/commands/cpcl/boxliy', code: 'BOX', child: true },
+			{ label: t.aryten, slug: 'docs/commands/cpcl/aryten', code: 'ARY', child: true },
+		],
+	},
+	{ label: t.driver, items: [{ label: t.driverHome, slug: 'docs/driver', code: 'DRV' }] },
+	{ label: t.firmware, items: [{ label: t.firmwareHome, slug: 'docs/firmware', code: 'FW' }] },
+];
+
+function isActiveGroup(group: (typeof groups)[number]) {
+	return group.items.some((item) => !('section' in item) && currentSlug === item.slug);
+}
+---
+
+<aside class="sidebar" aria-label={t.head} data-docs-nav data-collapse-label={t.collapse} data-expand-label={t.expand}>
+	<div class="sidebar-head">
+		<span class="sidebar-title">{t.head}</span>
+		<button class="sidebar-toggle" type="button" aria-label={t.collapse} aria-pressed="false">{t.collapse}</button>
+	</div>
+	{groups.map((group) => (
+		<details class="nav-section" open={isActiveGroup(group)}>
+			<summary>{group.label}</summary>
+			<div class="nav-list">
+				{group.items.map((item) => (
+					'section' in item
+						? <div class="doc-link-section">{item.section}</div>
+						: <a class:list={['doc-link', { active: currentSlug === item.slug, child: item.child }]} href={href(item.slug)} data-code={item.code} data-title={item.label} aria-current={currentSlug === item.slug ? 'page' : undefined}>{item.label}</a>
+				))}
+			</div>
+		</details>
+	))}
+</aside>
+
+<script>
+	const navStorageKey = 'qishu-docs-nav-collapsed';
+
+	function syncDocsNav(nav: HTMLElement, collapsed: boolean): void {
+		const layout = nav.closest('.docs-layout');
+		layout?.classList.toggle('nav-collapsed', collapsed);
+
+		const toggle = nav.querySelector<HTMLButtonElement>('.sidebar-toggle');
+		if (!toggle) return;
+		const label = collapsed ? nav.dataset.expandLabel || 'Expand' : nav.dataset.collapseLabel || 'Fold';
+		toggle.textContent = label;
+		toggle.setAttribute('aria-label', label);
+		toggle.setAttribute('aria-pressed', String(collapsed));
+	}
+
+	function setupDocsNav(nav: HTMLElement): void {
+		if (nav.dataset.ready === 'true') return;
+		nav.dataset.ready = 'true';
+
+		let collapsed = false;
+		try {
+			collapsed = localStorage.getItem(navStorageKey) === 'true';
+		} catch {
+			collapsed = false;
+		}
+		syncDocsNav(nav, collapsed);
+
+		nav.querySelector('.sidebar-toggle')?.addEventListener('click', () => {
+			const next = !nav.closest('.docs-layout')?.classList.contains('nav-collapsed');
+			syncDocsNav(nav, next);
+			try {
+				localStorage.setItem(navStorageKey, String(next));
+			} catch {
+				// Navigation width is a visual preference only.
+			}
+		});
+	}
+
+	document.querySelectorAll<HTMLElement>('[data-docs-nav]').forEach(setupDocsNav);
+</script>

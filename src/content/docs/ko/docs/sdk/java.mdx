@@ -1,0 +1,139 @@
+---
+title: Java SDK
+description: Java, Android, 네트워크 인쇄, 블루투스 인쇄를 위한 NIB SDK 연동 설명입니다.
+sidebar:
+  order: 4
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Java SDK는 Android 애플리케이션, JVM 도구, 네트워크 프린터, 클래식 블루투스 연결에 적합합니다. 연동할 때는 먼저 실제 연결을 `Device`로 감싼 뒤, 템플릿이 `Script`를 만들거나 쓰기 파이프라인으로 바이트를 직접 보내게 하세요.
+
+## Maven 모듈
+
+Maven group은 `com.boxliy.nib`입니다.
+
+| 모듈 | 용도 |
+| --- | --- |
+| `nib` | 표준 통합판이며 제품 통합에 적합합니다. |
+| `nib-core` | `Device`, `Script`, `WritePipeline`, 수신 소스, 질의 분배를 제공합니다. |
+| `nib-esc-boxliy`, `nib-tspl-boxliy`, `nib-cpcl-boxliy` | Boxliy dialect 빌더와 응답 parser입니다. |
+| `nib-esc`, `nib-tspl`, `nib-cpcl` | Aryten 호환 dialect입니다. |
+| `nib-esc-lin8inch`, `nib-tspl-lin8inch` | Lin8inch dialect입니다. |
+| `nib-network` | TCP/IP 네트워크 프린터 연결입니다. |
+| `nib-bluetooth` | Java 클래식 블루투스 추상화입니다. |
+| Android classic adapter | 저장소에 Android 클래식 블루투스 adapter 소스가 있습니다. 독립 전달 모듈 여부는 실제 전달 버전을 기준으로 합니다. |
+
+소스에서 Java BLE 모듈은 확인되지 않았습니다. Android BLE를 연동해야 한다면 전달 버전 또는 프로젝트 adapter 계층을 기준으로 확인하고, 클래식 블루투스 모듈로 추론하지 마세요.
+
+## Core 객체
+
+`Device`는 최소 디바이스 계약입니다.
+
+```java
+public interface Device {
+  String name();
+  boolean connected();
+  void write(byte[] data) throws IOException;
+  byte[] read(int timeoutMs) throws IOException;
+  void close() throws IOException;
+}
+```
+
+`Script`는 생성된 바이트를 보관하며 `binary()`, `hex()`, `base64()`, `string()`, `length()`를 제공합니다. `WritePipeline`은 분할 쓰기를 담당하고, `WriteOptions`는 `ChunkPolicy`, `WriteMode`, 취소, 타임아웃, backpressure를 구성하며 `WriteResult`를 반환합니다.
+
+기본 분할 크기는 `NibDefaults.CHUNK_SIZE`에서 오며, 현재 `1024` 바이트입니다.
+
+## 첫 인쇄
+
+Java의 `EscBoxliy`에는 `text()` 메서드가 없습니다. 일반 텍스트에는 `raw(...)`를 사용하세요.
+
+```java
+import com.boxliy.nib.core.Device;
+import com.boxliy.nib.esc.EscBoxliy;
+
+Device device = Device.none();
+
+EscBoxliy.of(device)
+    .reset()
+    .raw("NIB SDK\r\n")
+    .feed(2)
+    .write();
+```
+
+`Device.none()`은 스크립트 생성 테스트에 적합하며 실제 프린터에 연결하지 않습니다. 실제 프로젝트에서는 네트워크, 클래식 블루투스 또는 Android classic 연결로 얻은 `Device`를 전달하세요.
+
+먼저 스크립트를 만들고 나중에 쓸 때는 다음과 같이 합니다.
+
+```java
+import com.boxliy.nib.core.WriteOptions;
+import com.boxliy.nib.core.WritePipeline;
+import com.boxliy.nib.core.WriteResult;
+import com.boxliy.nib.tspl.TsplAryten;
+
+byte[] data = TsplAryten.of()
+    .size(40, 30)
+    .cls()
+    .text(20, 20, "NIB SDK")
+    .print(1)
+    .build()
+    .binary();
+
+WriteResult result = WritePipeline.write(
+    device,
+    data,
+    WriteOptions.defaults(),
+    null
+);
+```
+
+## 네트워크 인쇄
+
+`nib-network`는 `Network.connect(...)`를 제공합니다.
+
+```java
+import com.boxliy.nib.core.Device;
+import com.boxliy.nib.network.Network;
+
+Device device = Network.connect("192.168.1.50", 9100);
+```
+
+기본 연결 타임아웃은 `10000` ms이며, `Network.connect(host, port, timeoutMs)`를 호출할 수도 있습니다. 네트워크 인쇄 전에는 host, port, 타임아웃, 재시도, 로그 전략을 확인하세요. 로그에는 endpoint와 바이트 길이를 기록할 수 있지만 민감한 인쇄 내용은 기록하지 마세요.
+
+## Android와 클래식 블루투스
+
+Java 저장소에는 `nib-bluetooth`가 확인되며 Android classic adapter 소스도 있습니다. Android classic 연동은 보통 다음이 필요합니다.
+
+1. Android 버전에 맞춰 블루투스 권한을 요청합니다.
+2. 페어링된 디바이스를 스캔하거나 선택합니다.
+3. 클래식 블루투스 socket을 엽니다.
+4. `Device`로 감쌉니다.
+5. dialect builder로 `Script`를 생성합니다.
+6. 빌더의 `write()` 또는 `WritePipeline.write(...)`로 전송합니다.
+7. 페이지가 파괴되거나 세션이 끝날 때 연결을 닫습니다.
+
+권한, 수명주기, 재연결 로직을 인쇄 템플릿에 쓰지 마세요.
+
+## 수신, 질의, 파싱
+
+core는 `ReceiveSource`, `PollingReceiveSource`, `CallbackReceiveSource`, `ReceiveListener`, `QueryDispatcher`, `PendingQuery`, `ResponseMatcher`를 제공합니다.
+
+Boxliy dialect parser 이름은 다음과 같습니다.
+
+| dialect | parser |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+상태, 배터리, 모델, 시리얼 번호 등 질의는 세션 계층에서 일괄 처리하고, 디바이스 펌웨어에 맞춰 적절한 타임아웃을 설정해야 합니다.
+
+<SdkApiReference sdk="java" locale="ko" />
+
+## 실전 권장 사항
+
+- 먼저 모델이 지원하는 dialect를 확인한 뒤 `EscBoxliy`, `TsplBoxliy`, `CpclBoxliy` 또는 Aryten/Lin8inch 빌더를 선택하세요.
+- Android classic과 JVM classic은 연결 방식이 다릅니다. 템플릿 계층이 플랫폼 클래스에 의존하지 않게 하세요.
+- 큰 이미지와 연속 인쇄는 실제 디바이스에서 분할 크기를 반드시 검증해야 합니다.
+- 난독화 시 전달 패키지가 보존을 요구하는 공개 SDK API를 유지하세요.

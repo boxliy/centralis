@@ -1,0 +1,71 @@
+---
+title: Status Reads
+description: How to read device status, query responses, and printer information.
+sidebar:
+  order: 7
+---
+
+Status reads tell you what the printer is doing now: whether it is online, out of paper, cover open, overheated, what the battery level is, and what version or serial number it reports. Status reads and writing print content are two separate paths. Writes send commands to the device. Status reads receive and parse data returned by the device.
+
+Not every printer supports every status. Even when printers use the same ESC, TSPL, or CPCL command family, different firmware may support only some queries, or may send active notifications only when specific exceptions occur.
+
+## How one query flows
+
+A typical status query goes through this chain:
+
+1. The application writes a query command, or waits for an active device notify.
+2. The platform transport receives data and passes it to a receive source.
+3. The receive source passes raw bytes to the query dispatcher.
+4. The query dispatcher uses the current pending query response matcher to decide whether this packet is the response being awaited.
+5. After a match, raw bytes are passed to the parser for the corresponding dialect.
+6. The parser returns a typed response, such as status, battery, version, model, serial number, MAC, or unknown.
+
+If there is no pending query, received data can be handled as a normal notification event. If there is a pending query but the matcher never matches, the query fails after timeout.
+
+## Receive sources
+
+NIB receive sources are only the entry point that delivers device responses into the SDK. They do not interpret business meaning.
+
+| Source | Notes | Common scenarios |
+| --- | --- | --- |
+| callback / notify | The platform actively pushes data to the SDK after receiving BLE notify, system callbacks, or plugin events. | BLE notify, mobile Bluetooth plugins. |
+| polling | The SDK repeatedly calls `read`, and notifies the listener after non-empty data is read. | Network, USB, classic Bluetooth, or devices that only expose a read API. |
+| device receive source | The device object itself exposes a receive source, and the session connects to it directly. | Platform wrappers that already handle notify/read. |
+
+Which source to choose depends on the platform API and device capabilities. BLE usually prefers notify. If stable notify is unavailable, consider polling or explicit reads.
+
+## Pending query and timeout
+
+The query dispatcher tracks one pending query at a time. When starting a query, provide a matcher and timeout:
+
+| Situation | Result |
+| --- | --- |
+| matcher returns a typed response | The query completes and the business flow receives the parsed result. |
+| matcher returns empty | This packet is not the current query result; keep waiting. |
+| matcher throws an exception | The current query fails. |
+| receive source reports an error or closes | The current query fails. |
+| timeout is exceeded | The current query fails, and a late response will not automatically complete it. |
+
+A timeout does not necessarily mean the printer is broken. It may mean the device does not support the status, notify was not subscribed successfully, the query command and dialect do not match, or the transport layer did not deliver the response into the receive source.
+
+## Dialect parser coverage
+
+NIB currently covers common response parsing for ESC, TSPL, and CPCL:
+
+| Dialect | Common parsed content |
+| --- | --- |
+| ESC | Status, battery, version, model, name, serial number, MAC, and some active events. |
+| TSPL | Status, battery, version, model, name, serial number, MAC. |
+| CPCL | Status frames, normal status, battery, version, model, name, serial number. Unknown MAC or special responses are preserved as unknown. |
+
+`unknown` in a typed response means "data was received, but the current parser does not recognize this format." This is different from a transport failure: a transport failure means the connection, read, notify, or receive source itself failed, and usually does not produce a parseable raw response.
+
+## Integration recommendations
+
+Put status reads in a print session or device service, not scattered across UI components. During integration, confirm three things first:
+
+1. Whether this printer and firmware truly support the status you want to read.
+2. Whether the query command, response matcher, and parser belong to the same dialect.
+3. Whether the receive source has started, and whether notify/read data enters the dispatcher.
+
+The user interface can show results such as "paper out", "cover open", or "low battery", but logs and troubleshooting should preserve the raw stage: no response, unknown response, or connection/read failure.

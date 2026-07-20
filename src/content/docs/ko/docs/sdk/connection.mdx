@@ -1,0 +1,65 @@
+---
+title: 디바이스 연결
+description: SDK가 플랫폼 디바이스를 통합 connected device로 어댑트하는 방식입니다.
+sidebar:
+  order: 5
+---
+
+SDK의 인쇄 템플릿은 플랫폼 블루투스, USB 또는 네트워크 API를 직접 조작하지 않습니다. 연결 계층이 스캔, 권한, 연결, 알림 구독을 담당하고, 플랫폼 객체를 connected device로 감쌉니다. 인쇄 계층은 통합된 쓰기/읽기 인터페이스만 바라봅니다.
+
+이 경계는 중요합니다. 템플릿 코드는 “이것이 WeChat BLE인지 iOS CoreBluetooth인지” 몰라도 같은 TSPL, ESC 또는 CPCL 바이트를 생성할 수 있어야 합니다.
+
+## 책임 경계
+
+| 계층 | 담당하는 일 |
+| --- | --- |
+| 플랫폼 API | 스캔, 권한, 연결, 연결 해제, service/characteristic 발견, 알림 구독. |
+| Transport adapter | 플랫폼 API를 connected device로 감싸고 플랫폼 콜백, 권한, 원시 핸들을 숨깁니다. |
+| Session | 템플릿 선택, 쓰기 파이프라인 호출, 로그 기록, 상태, 타임아웃, 재시도, 오류 처리. |
+| Template | ESC, TSPL 또는 CPCL 바이트만 생성하며, 블루투스 권한, socket, USB endpoint, 네트워크 재연결은 처리하지 않습니다. |
+
+이렇게 나누면 같은 인쇄 템플릿을 서로 다른 런타임에서 재사용할 수 있습니다.
+
+## connected device 계약
+
+언어마다 인터페이스 이름은 다르지만 같은 의미를 표현합니다. 이미 연결되어 있고, 바이트를 쓸 수 있으며, 지원하는 경우 응답을 읽을 수 있는 객체입니다.
+
+| 언어 | 핵심 인터페이스 | 주요 메서드 |
+| --- | --- | --- |
+| TypeScript | `ConnectedDevice` | `write(data)`, `read(options)`, `notify(callback)`, `disconnect()`, `connectionState()` |
+| Dart | `ConnectedDevice<T>` | `write(data)`, `read(options)`, `disconnect()`, `connectionStateChanges()` |
+| Java | `Device` | `write(byte[])`, `read(timeoutMs)`, `close()`, `connected()` |
+| Objective-C | `BNDevice` | `writeData:error:`, `readWithTimeout:error:`, `closeWithError:` |
+| Swift | `NibDevice` | `write(_:)`, `read(maxLength:)`, `close()`, `connected` |
+
+플랫폼에 읽기 기능이 없다면 먼저 쓰기 경로만 구현해도 됩니다. 상태 읽기가 필요해질 때 read, notify 또는 receive source를 보강하세요.
+
+## 흔한 연결 유형
+
+| 유형 | 설명 |
+| --- | --- |
+| BLE | 모바일과 미니프로그램에서 흔합니다. 권한, service/characteristic, 분할, 쓰기 모드, 알림을 처리해야 합니다. |
+| 클래식 블루투스 | Android와 일부 데스크톱 시나리오에서 흔합니다. 페어링, socket, 연결 끊김 복구가 핵심입니다. |
+| USB / WebUSB | 브라우저, 데스크톱 또는 브리지 시나리오에 적합합니다. 사용자 권한과 endpoint를 처리해야 합니다. |
+| 네트워크 | LAN 또는 네트워크 포트 브리지 디바이스에 적합합니다. 연결 타임아웃과 재시도를 처리해야 합니다. |
+
+## BLE characteristic 주의사항
+
+BLE 연결 성공이 곧 인쇄 가능을 의미하지는 않습니다. 다음도 확인해야 합니다.
+
+| 항목 | 설명 |
+| --- | --- |
+| service UUID | 허용된 service 안에서만 인쇄 characteristic을 찾습니다. |
+| write characteristic | 반드시 `write` 또는 `writeWithoutResponse`를 지원해야 합니다. |
+| read/notify characteristic | 상태 읽기 또는 credit 흐름 제어에는 읽기 가능, 알림 가능, 또는 쓰기 characteristic과 통합된 characteristic이 필요합니다. |
+| 자동 선택 전략 | TypeScript BLE core는 속성 기반 write/notify/read 선택을 지원하고, allowed write/read characteristic 지정도 지원합니다. 프로덕션에서는 최종 선택된 UUID를 기록하는 것을 권장합니다. |
+| 분할 크기 | 흔한 보수적 값은 20 bytes입니다. negotiated MTU 또는 플랫폼 maximum write length로 계산할 수도 있습니다. |
+| credit/flow control | 일부 BLE 디바이스는 알림으로 쓰기 리듬을 제어합니다. 확인 전에는 무한 연속 쓰기가 가능하다고 가정하지 마세요. |
+
+## 권장 구조
+
+1. `connectPrinter()`는 connected device 반환만 담당합니다.
+2. `buildReceipt()` 또는 `buildLabel()`은 명령어 생성만 담당합니다.
+3. `printJob()`은 연결, 쓰기, 상태 읽기, 오류 처리를 담당합니다.
+
+페이지 컴포넌트에서 직접 명령어를 조립하지 말고, 인쇄 템플릿 안에 블루투스 권한 로직을 쓰지 마세요.

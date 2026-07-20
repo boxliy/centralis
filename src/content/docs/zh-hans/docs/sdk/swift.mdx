@@ -1,0 +1,123 @@
+---
+title: Swift SDK
+description: 面向 iOS 和 macOS Swift 项目的 NIB 打印机 SDK 接入说明。
+sidebar:
+  order: 6
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Swift SDK 适合新的 iOS 和 macOS 原生项目。源码中没有找到可确认的 `Package.swift`，所以这里不写具体 SwiftPM product 名称；请按交付包的导入方式接入对应模块。
+
+## 模块内容
+
+| 模块 | 常用类型 |
+| --- | --- |
+| Core | `NibScript`、`NibDevice`、`NibPen`、`NibWritePipeline`、接收源和查询分发。 |
+| BLE | `NibBleCentral`、`NibBleDevice`、`NibBleConnectionOptions`、credit 流控。 |
+| Boxliy dialects | `NibEscBoxliy`、`NibTsplBoxliy`、`NibCpclBoxliy` 和响应解析器。 |
+| Aryten dialects | `NibEscAryten`、`NibTsplAryten`、`NibCpclAryten`。 |
+| Image helpers | 交付版本中可用的图片准备和打印辅助能力。 |
+
+## Core 对象
+
+`NibDevice` 是最小设备合约：
+
+```swift
+public protocol NibDevice: AnyObject {
+  var name: String { get }
+  var connected: Bool { get }
+
+  func write(_ data: Data) throws
+  func read(maxLength: Int) throws -> Data
+  func close() throws
+}
+```
+
+`NibScript` 保存构建好的 `Data`，并提供 `length`、`string`、`hexString`。`NibWritePipeline` 负责分片写入，默认 `chunkSize` 是 `512` 字节。
+
+## 第一次打印
+
+```swift
+let connectedDevice: NibDevice = /* BLE 或平台设备 */
+
+let script = NibTsplAryten()
+  .size(width: 40, height: 30)
+  .cls()
+  .text(x: 20, y: 20, content: "NIB SDK")
+  .print()
+  .script
+
+let pipeline = NibWritePipeline()
+try pipeline.write(script, to: connectedDevice)
+```
+
+构建器负责生成脚本，`NibWritePipeline` 负责把脚本分片写入设备。需要改变分片大小时：
+
+```swift
+let pipeline = NibWritePipeline(chunkSize: 185)
+try pipeline.write(script, to: connectedDevice)
+```
+
+## BLE 接入
+
+BLE 入口是 `NibBleCentral`：
+
+```swift
+let central = NibBleCentral()
+try central.startDiscovery(timeout: 10)
+
+// 用户选择 discoveredDevices 里的目标设备后：
+let device = try central.connect(
+  selectedDevice,
+  options: NibBleConnectionOptions()
+)
+```
+
+`NibBleConnectionOptions` 可以配置 `serviceUUIDs`、`writeCharacteristicUUID`、`readCharacteristicUUID`、连接和发现超时、`writeMode`、`credit` 和自定义 `flowControl`。写入模式是 `NibBleWriteMode.withResponse` 或 `.withoutResponse`，默认是 `.withoutResponse`。
+
+## BLE credit 流控
+
+credit API 包括：
+
+| API | 用途 |
+| --- | --- |
+| `NibBleCreditOptions` | 配置是否启用 credit、UUID、初始 credit、MTU、策略和 fallback。 |
+| `NibBleLaneCreditWriter` | lane-credit 策略。 |
+| `NibBleSignalCreditWriter` | signal-credit 策略。 |
+| `NibBleFlowControlStrategy` | 自定义流控策略协议。 |
+
+默认 UUID 是 `FF00` service、`FF02` write、`FF01` read、`FF03` credit。lane-credit 默认初始 credit 是 `1`，payload overhead 是 `3`；signal-credit 默认初始 credit 是 `0`，payload overhead 是 `0`。`NibBleCreditOptions` 默认不启用，除非选择 `.signalCredit` 或显式设置 `enabled: true`。
+
+## 接收、查询和 dataStream
+
+Core 接收类型包括 `NibReceiveSource`、`NibCallbackReceiveSource`、`NibPollingReceiveSource` 和 `NibReceiveListener`。查询类型包括 `NibQueryDispatcher<Response>`、`NibPendingQuery<Response>` 和 `NibResponseMatcher<Response>`。
+
+`NibReceiveSource` 提供 `dataStream()` 扩展，可以把回包转换成 `AsyncStream<Data>`：
+
+```swift
+for await data in device.receiveSource.dataStream() {
+  let response = NibTsplResponseParser.parse(query: .status, raw: data)
+  if response.isReady {
+    break
+  }
+}
+```
+
+Boxliy 方言 parser 名称：
+
+| 方言 | 解析器 |
+| --- | --- |
+| ESC | `NibEscResponseParser` |
+| TSPL | `NibTsplResponseParser` |
+| CPCL | `NibCpclResponseParser` |
+
+<SdkApiReference sdk="swift" locale="zh-hans" />
+
+## 实战建议
+
+- 先确认机型支持 ESC、TSPL 还是 CPCL，再选构建器。
+- BLE 权限、扫描、重连和 App 生命周期逻辑放在连接层。
+- 模板层只处理纸张尺寸、坐标、图片和文字内容。
+- 真机验证 write mode、MTU、credit 通知、大图片和连续打印。

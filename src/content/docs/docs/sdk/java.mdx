@@ -1,0 +1,139 @@
+---
+title: Java SDK
+description: NIB SDK integration guide for Java, Android, network printing, and Bluetooth printing.
+sidebar:
+  order: 4
+---
+
+import SdkApiReference from '../../../../components/docs/SdkApiReference.astro';
+
+
+The Java SDK is suitable for Android applications, JVM tools, network printers, and classic Bluetooth connections. During integration, first wrap the real connection as a `Device`, then let templates build a `Script` or send bytes directly through the write pipeline.
+
+## Maven modules
+
+The Maven group is `com.boxliy.nib`.
+
+| Module | Purpose |
+| --- | --- |
+| `nib` | Standard aggregate edition, suitable for product integration. |
+| `nib-core` | `Device`, `Script`, `WritePipeline`, receive sources, and query dispatch. |
+| `nib-esc-boxliy`, `nib-tspl-boxliy`, `nib-cpcl-boxliy` | Boxliy dialect builders and response parsers. |
+| `nib-esc`, `nib-tspl`, `nib-cpcl` | Aryten-compatible dialects. |
+| `nib-esc-lin8inch`, `nib-tspl-lin8inch` | Lin8inch dialects. |
+| `nib-network` | TCP/IP network printer connection. |
+| `nib-bluetooth` | Java classic Bluetooth abstraction. |
+| Android classic adapter | Android classic Bluetooth adapter source exists in the repository. Whether it is delivered as an independent module depends on the actual delivery version. |
+
+No confirmed Java BLE module was found in the source. If Android BLE is required, confirm it from the delivery version or project adapter layer, and do not infer BLE support from the classic Bluetooth module.
+
+## Core objects
+
+`Device` is the minimal device contract:
+
+```java
+public interface Device {
+  String name();
+  boolean connected();
+  void write(byte[] data) throws IOException;
+  byte[] read(int timeoutMs) throws IOException;
+  void close() throws IOException;
+}
+```
+
+`Script` stores built bytes and provides `binary()`, `hex()`, `base64()`, `string()`, and `length()`. `WritePipeline` handles chunked writes. `WriteOptions` configures `ChunkPolicy`, `WriteMode`, cancellation, timeout, and backpressure, and returns `WriteResult`.
+
+The default chunk size comes from `NibDefaults.CHUNK_SIZE`, currently `1024` bytes.
+
+## First print
+
+Java `EscBoxliy` does not have a `text()` method. Use `raw(...)` for normal text:
+
+```java
+import com.boxliy.nib.core.Device;
+import com.boxliy.nib.esc.EscBoxliy;
+
+Device device = Device.none();
+
+EscBoxliy.of(device)
+    .reset()
+    .raw("NIB SDK\r\n")
+    .feed(2)
+    .write();
+```
+
+`Device.none()` is suitable for testing script generation and does not connect to a real printer. In real projects, pass in a `Device` returned by a network, classic Bluetooth, or Android classic connection.
+
+When you need to build a script before writing:
+
+```java
+import com.boxliy.nib.core.WriteOptions;
+import com.boxliy.nib.core.WritePipeline;
+import com.boxliy.nib.core.WriteResult;
+import com.boxliy.nib.tspl.TsplAryten;
+
+byte[] data = TsplAryten.of()
+    .size(40, 30)
+    .cls()
+    .text(20, 20, "NIB SDK")
+    .print(1)
+    .build()
+    .binary();
+
+WriteResult result = WritePipeline.write(
+    device,
+    data,
+    WriteOptions.defaults(),
+    null
+);
+```
+
+## Network printing
+
+`nib-network` provides `Network.connect(...)`:
+
+```java
+import com.boxliy.nib.core.Device;
+import com.boxliy.nib.network.Network;
+
+Device device = Network.connect("192.168.1.50", 9100);
+```
+
+The default connection timeout is `10000` ms. You can also call `Network.connect(host, port, timeoutMs)`. Before network printing, confirm host, port, timeout, retry, and logging strategy. Logs can record endpoints and byte lengths, but should not record sensitive print content.
+
+## Android and classic Bluetooth
+
+The Java repository confirms `nib-bluetooth` and includes Android classic adapter source. Android classic integration usually needs to:
+
+1. Request Bluetooth permissions according to the Android version.
+2. Scan for or select a paired device.
+3. Establish a classic Bluetooth socket.
+4. Wrap it as a `Device`.
+5. Generate a `Script` with a dialect builder.
+6. Send it through builder `write()` or `WritePipeline.write(...)`.
+7. Close the connection when the page is destroyed or the session ends.
+
+Do not put permissions, lifecycle, or reconnect logic inside print templates.
+
+## Receiving, querying, and parsing
+
+Core provides `ReceiveSource`, `PollingReceiveSource`, `CallbackReceiveSource`, `ReceiveListener`, `QueryDispatcher`, `PendingQuery`, and `ResponseMatcher`.
+
+Boxliy dialect parser names:
+
+| Dialect | Parser |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+Queries such as status, battery, model, and serial number should be handled centrally in the session layer, with reasonable timeouts for the device firmware.
+
+<SdkApiReference sdk="java" locale="root" />
+
+## Practical recommendations
+
+- Confirm the dialect supported by the printer model before choosing `EscBoxliy`, `TsplBoxliy`, `CpclBoxliy`, or Aryten/Lin8inch builders.
+- Android classic and JVM classic connection methods differ. The template layer should not depend on platform classes.
+- Large images and continuous printing must validate chunk size on real devices.
+- During obfuscation, keep the public SDK APIs required by the delivered package.

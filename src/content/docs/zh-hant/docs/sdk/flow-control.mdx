@@ -1,0 +1,72 @@
+---
+title: 流控
+description: NIB 如何處理分片寫入、BLE MTU 和 credit 節奏。
+sidebar:
+  order: 3
+---
+
+流控決定應用程式把列印資料寫入裝置時要“切多小、寫多快、什麼時候等待”。對初次接入來說，可以先把它理解成三件事：
+
+1. 把一整份指令位元組切成多個 chunk。
+2. 每次只寫目前傳輸方式可以穩定承受的大小。
+3. 如果 BLE 裝置要求 credit，就等裝置通知後再繼續寫。
+
+Dialect builder 只負責產生 ESC、TSPL 或 CPCL 位元組；分片大小、寫入模式、BLE credit 和失敗處理應放在 device、connection 或 print session 層。
+
+## 一般分片
+
+一般分片不理解列印指令含義，只按位元組數把最終 payload 切開。例如 3000 位元組的資料用 1024 位元組分片時，會寫成 1024、1024、952 三段。
+
+各語言 core 的預設一般分片大小不同：
+
+| SDK | 預設 chunk size |
+| --- | --- |
+| TypeScript | 512 bytes |
+| Dart | 1024 bytes |
+| Java | 1024 bytes |
+| Swift | 512 bytes |
+| Objective-C | 512 bytes |
+
+這些預設值適合一般傳輸起步，不等於所有 BLE 裝置的最佳值。遇到丟包、寫入失敗或列印半截內容時，優先確認裝置的最大寫入長度、平台 write API 限制和是否需要 BLE credit。
+
+## BLE MTU
+
+BLE 的 MTU 是一包 ATT 資料的上限，不是應用可以隨便寫入的完整業務資料大小。保守起步值是 20 bytes；如果平台或裝置協商出了 MTU，NIB 的 BLE helper 會使用 `mtu - 3` 作為 payload 大小，因為 ATT header 通常佔 3 bytes。
+
+例如協商 MTU 為 185 時，建議 payload 是 182 bytes。這樣仍然是“分片寫入”，只是分片大小來自 BLE MTU，而不是一般預設值。
+
+## BLE Credit
+
+有些 BLE 印表機不允許應用程式連續寫入。裝置會通過 notify 告訴 SDK 目前還能寫幾包，SDK 消耗一個 credit 寫一個 chunk，credit 用完就等待下一次通知。
+
+NIB 目前有兩類 credit 策略，未來可能繼續增加新的策略或裝置族專用策略：
+
+| 策略 | 機制 | 適合情況 |
+| --- | --- | --- |
+| `lane-credit` | 讀裝置的 credit notify；通知可同時更新 MTU 和可寫 credit。每寫一個 payload chunk 消耗一個 credit。 | 裝置有固定的 read/notify/credit 特徵值，credit 通知代表主寫入通道容量。 |
+| `signal-credit` | 使用專門的 signal/credit 通知控制寫入；MTU 通知可以單獨到達，credit 通知到達後才真正放行寫入。 | 裝置把“訊號”和一般讀回包分開，或要求專門訊號特徵值控制節奏。 |
+
+`lane-credit` 的預設 BLE credit 起點通常更適合“觀察到有效通知後再按 credit 寫”；`signal-credit` 預設 credit 為 0，必須等正數 credit 通知後才寫。接入時要確認 service UUID、寫入特徵值、讀取/通知特徵值、credit 特徵值、MTU 格式和 credit 通知格式。
+
+## fallback / fail / bypass-write
+
+Credit 模式下最常見的問題是：應用程式開啟了 credit，但裝置沒有按預期發 notify。NIB 把這種情況分成兩類處理：
+
+| 模式 | 行為 |
+| --- | --- |
+| `fail` | 等不到 credit 時直接失敗，暴露為寫入或 BLE credit 逾時。適合正式接入和嚴格驗證。 |
+| `bypass-write` | credit 未啟用或等待逾時時，繞過 credit，把剩餘資料按一般寫入路徑發出。適合聯合測試、相容測試或確認裝置其實不需要 credit。 |
+
+不要把 `bypass-write` 當成長期預設值。它能幫助判斷“裝置沒有 credit 也能列印嗎”，但如果裝置真實依賴 credit，繞過後仍可能丟包、卡住或只列印部分內容。
+
+## 怎麼選擇
+
+從簡單到複雜選擇：
+
+1. USB、網路、經典藍牙等穩定流式傳輸：先使用 SDK 預設一般分片。
+2. BLE 但沒有裝置專用要求：先用保守 20 bytes，或使用平台提供的 maximum write length。
+3. BLE 已協商 MTU：使用 `mtu - 3` 作為 payload 分片。
+4. BLE 文件或抓包顯示有 credit notify：按裝置協議啟用 `lane-credit` 或 `signal-credit`。
+5. 不確定 credit 是否必要：聯合測試階段可以短時間使用 `bypass-write` 對比；正式釋出前應改成明確的 credit 策略或一般分片策略。
+
+如果“小文字正常，大圖或長標籤失敗”，通常不是指令產生問題，而是分片、MTU、credit 或平台寫入模式沒有匹配裝置。

@@ -1,0 +1,57 @@
+---
+title: SDK アーキテクチャ
+description: NIB が core、デバイスパッケージ、命令ファミリー、言語別配布パッケージをどう分けるか。
+sidebar:
+  order: 4
+---
+
+import ExcalidrawEmbed from '/src/components/docs/ExcalidrawEmbed.astro';
+
+NIB は固定された命令ドキュメントではなく、レイヤー化された SDK です。標準版から導入を始めることもできますし、パッケージサイズ、プラットフォーム範囲、公開能力を制御したい場合は、core、device、dialect の一部パッケージだけを選ぶこともできます。
+
+<ExcalidrawEmbed title="NIB Printer SDK Architecture" />
+
+## 4 層構造
+
+| レイヤー | 責務 |
+| --- | --- |
+| Core | スクリプト/バイトコンテナ、connected device 契約、分割書き込み、受信ソース、pending query、レスポンス分配を提供します。デバイスのスキャンは行わず、プリンターがどの命令に対応するかも決めません。 |
+| Device | 実行環境の BLE、クラシック Bluetooth、WebUSB、ネットワーク、WeChat、UniApp、Taro、Android Bluetooth、Apple CoreBluetooth などを connected device に適合させます。 |
+| Dialect | プリンター Family と命令ファミリー向けのビルダーです。例: Boxliy TSPL、Aryten ESC、Lin8inch TSPL。プリンターが理解できるバイト列を生成します。 |
+| Edition | 言語向けの配布パッケージです。よく使う core、device、dialect を組み合わせ、インストールと import を扱いやすくします。 |
+
+この 4 層は実際のコード境界に対応します。テンプレートは dialect を選び、接続は device を選び、書き込みとステータスの編成には core を使います。業務プロジェクトでは通常、edition をインストールするか、必要に応じてサブパッケージをインストールします。
+
+## Family と命令ファミリー
+
+| Family | 利用可能な命令ビルダー | 説明 |
+| --- | --- | --- |
+| Boxliy | ESC、TSPL、CPCL | 启枢 / Boxliy サーマルプリンター製品の主要な命令ファミリー。 |
+| Aryten | ESC、TSPL、CPCL | 互換命令ファミリー。Boxliy の主要な表面を継承し、必要な場合だけ Family 拡張を追加します。 |
+| Lin8inch | ESC、TSPL | 8 インチ拡張命令ファミリー。メディア、濃度、ステータス、デバイス設定などの拡張コマンドを含みます。 |
+
+まずプリンターがどの Family に属するかを確認し、その後でプリンターが対応する命令ファミリーを選びます。一部のプリンターは特定の命令セットにしか対応していません。SDK は、ある builder を import しただけでプリンターに対応能力を付与するものではありません。
+
+ESC、TSPL、CPCL は 3 種類の異なるプリンター命令言語です。
+
+| 命令ファミリー | よくある用途 | 導入時の重点 |
+| --- | --- | --- |
+| ESC | レシート、感熱紙、ライン印刷。 | テキスト、紙送り、カット、基本ステータスに注目します。 |
+| TSPL | ラベル、バーコード、QR コード、固定レイアウト。 | 用紙サイズ、gap/black mark、座標、`PRINT` に注目します。 |
+| CPCL | モバイル印刷、ラベル、帳票シーン。 | 座標、フォーム境界、デバイスが実際に対応するコマンドサブセットに注目します。 |
+
+## 共通モデル
+
+言語が異なっても、同じ理解モデルを保ちます。
+
+1. dialect builder で印刷スクリプトを構築します。
+2. connected device を通じてバイト列を書き込みます。
+3. 書き込み時は core またはデバイスパッケージが分割、書き込みモード、タイムアウト、進捗を処理します。
+4. プリンターが対応している場合は、core の receive/query ツールでステータスを読み取ります。
+5. 転送ロジックを印刷テンプレートに書き込まないでください。
+
+## 言語間の一貫性
+
+TypeScript、Dart、Java、Objective-C、Swift の型名は完全には一致しませんが、概念は一貫しています。builder がバイト列を生成し、device がバイト列を書き込み、receive source または query dispatcher が応答を処理します。言語を移行するときは、同名メソッドを 1 行ずつ探すのではなく、まずこれらの概念を移行してください。
+
+SDK のメソッド名はできるだけ意図に基づいて命名しますが、一部の公開メソッドは、プリンターマニュアルやファームウェアプロトコルと照合しやすいように、歴史的な命令語を残しています。画像およびラスタ印刷関連の機能は、SDK の image/raster 基盤機能に基づきます。通常のテキストやラベルの導入では、先に画像処理を理解する必要はありません。

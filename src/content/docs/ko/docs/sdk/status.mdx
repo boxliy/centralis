@@ -1,0 +1,71 @@
+---
+title: 상태 읽기
+description: 디바이스 상태, 질의 응답, 프린터 정보를 읽는 방법입니다.
+sidebar:
+  order: 7
+---
+
+상태 읽기는 프린터가 “지금 어떤 상태인지” 알기 위한 기능입니다. 온라인인지, 용지가 없는지, 커버가 열렸는지, 과열되었는지, 배터리가 얼마나 남았는지, 버전이나 시리얼 번호가 무엇인지 확인할 수 있습니다. 이는 인쇄 내용을 쓰는 경로와 별도입니다. 쓰기는 명령어를 디바이스에 보내고, 상태 읽기는 디바이스가 반환한 데이터를 받아 파싱합니다.
+
+모든 프린터가 모든 상태를 지원하지는 않습니다. 같은 ESC, TSPL 또는 CPCL을 사용하더라도 펌웨어마다 일부 질의만 지원하거나, 특정 예외가 발생했을 때만 능동적으로 알림을 보낼 수 있습니다.
+
+## 한 번의 질의 흐름
+
+대표적인 상태 질의는 다음 링크를 거칩니다.
+
+1. 애플리케이션이 질의 명령어를 쓰거나 디바이스의 능동 notify를 기다립니다.
+2. 플랫폼 전송 계층이 데이터를 받아 receive source에 전달합니다.
+3. receive source가 원시 bytes를 query dispatcher에 전달합니다.
+4. query dispatcher가 현재 pending query의 response matcher로 이 데이터가 기다리던 응답인지 판단합니다.
+5. 매칭에 성공하면 raw bytes를 해당 dialect의 parser에 전달합니다.
+6. parser가 status, battery, version, model, serial number, MAC 또는 unknown 같은 typed response를 반환합니다.
+
+pending query가 없을 때 받은 데이터는 일반 알림 이벤트로 처리할 수 있습니다. pending query가 있지만 matcher가 계속 맞지 않으면 질의는 타임아웃 후 실패합니다.
+
+## 수신 출처
+
+NIB의 receive source는 “디바이스 응답을 SDK로 보내는” 입구일 뿐이며, 비즈니스 의미를 해석하지 않습니다.
+
+| 출처 | 설명 | 흔한 시나리오 |
+| --- | --- | --- |
+| callback / notify | 플랫폼이 BLE notify, 시스템 콜백 또는 플러그인 이벤트를 받은 뒤 SDK로 능동 전달합니다. | BLE notify, 모바일 블루투스 플러그인. |
+| polling | SDK가 `read`를 반복 호출하고, 비어 있지 않은 데이터를 읽으면 listener에 알립니다. | 네트워크, USB, 클래식 블루투스 또는 read API만 있는 디바이스. |
+| device receive source | 디바이스 객체 자체가 receive source를 노출하고 session이 바로 연결합니다. | 플랫폼 래퍼가 이미 notify/read를 처리한 경우. |
+
+어떤 방식을 선택할지는 플랫폼 API와 디바이스 기능에 따라 달라집니다. BLE는 보통 notify를 우선 사용하고, 안정적인 notify가 없을 때 polling 또는 명시적 read를 고려합니다.
+
+## pending query와 타임아웃
+
+query dispatcher는 한 번에 하나의 pending query만 추적합니다. 질의를 시작할 때 matcher와 timeout을 제공해야 합니다.
+
+| 상황 | 결과 |
+| --- | --- |
+| matcher가 typed response를 반환 | 질의 완료, 비즈니스가 파싱된 결과를 받습니다. |
+| matcher가 빈 값을 반환 | 이 데이터는 현재 질의 결과가 아니므로 계속 기다립니다. |
+| matcher가 예외를 던짐 | 현재 질의가 실패합니다. |
+| receive source가 오류를 보고하거나 닫힘 | 현재 질의가 실패합니다. |
+| timeout 초과 | 현재 질의가 실패하며, 이후 늦게 도착한 응답이 이 질의를 자동 완료하지 않습니다. |
+
+타임아웃이 반드시 프린터 고장을 의미하지는 않습니다. 디바이스가 해당 상태를 지원하지 않거나, notify 구독에 실패했거나, 질의 명령어와 dialect가 맞지 않거나, 전송 계층이 응답을 receive source로 보내지 못했다는 뜻일 수 있습니다.
+
+## dialect 파싱 범위
+
+NIB는 현재 ESC, TSPL, CPCL의 흔한 응답 파싱을 지원합니다.
+
+| dialect | 흔한 파싱 내용 |
+| --- | --- |
+| ESC | 상태, 배터리, 버전, 모델, 이름, 시리얼 번호, MAC, 일부 능동 이벤트. |
+| TSPL | 상태, 배터리, 버전, 모델, 이름, 시리얼 번호, MAC. |
+| CPCL | 상태 프레임, 일반 상태, 배터리, 버전, 모델, 이름, 시리얼 번호. 알 수 없는 MAC 또는 특수 응답은 unknown으로 보존합니다. |
+
+typed response의 `unknown`은 “데이터를 받았지만 현재 parser가 이 형식을 모른다”는 뜻입니다. transport failure와는 다릅니다. transport failure는 연결, read, notify 또는 receive source 자체가 실패한 것으로, 보통 파싱 가능한 raw response를 얻지 못합니다.
+
+## 연동 권장 사항
+
+상태 읽기는 print session 또는 device service에 두고 UI 컴포넌트에 흩어 놓지 마세요. 연동할 때 먼저 세 가지를 확인하세요.
+
+1. 이 장비와 펌웨어가 읽으려는 상태를 실제로 지원하는지.
+2. 질의 명령어, response matcher, parser가 같은 dialect에 속하는지.
+3. receive source가 이미 시작되었고 notify/read 데이터가 dispatcher로 들어가는지.
+
+사용자 인터페이스에는 “용지 없음”, “커버 열림”, “배터리 부족” 같은 결과를 표시할 수 있습니다. 하지만 로그와 문제 해결에는 원시 단계를 보존해야 합니다. 응답이 없는지, 응답은 있지만 unknown인지, 연결/읽기가 실패했는지를 구분하세요.

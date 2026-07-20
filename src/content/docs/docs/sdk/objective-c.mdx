@@ -1,0 +1,117 @@
+---
+title: Objective-C SDK
+description: NIB printer SDK integration guide for iOS Objective-C projects.
+sidebar:
+  order: 5
+---
+
+import SdkApiReference from '../../../../components/docs/SdkApiReference.astro';
+
+
+The Objective-C SDK is suitable for existing iOS projects, mixed Objective-C / Swift projects, and projects delivered as a framework or `Nib.xcframework`. The standard entry header is:
+
+```objc
+#import <Nib/Nib.h>
+```
+
+## Framework contents
+
+| Module | Common types |
+| --- | --- |
+| Core | `BNDevice`, `BNScript`, `BNWritePipeline`, `BNReceiveSource`, `BNQueryDispatcher`. |
+| BLE | `BNBleCentral`, `BNBleDevice`, `BNBleConnectionOptions`, credit flow control. |
+| Boxliy dialects | `BNEscBoxliy`, `BNTsplBoxliy`, `BNCpclBoxliy`, and response parsers. |
+| Aryten dialects | `BNEscAryten`, `BNTsplAryten`, `BNCpclAryten`. |
+| Lin8inch dialects | `BNEscLin8inch`, `BNTsplLin8inch`. |
+| Image helpers | Image preparation and print helpers available in the delivered package. |
+
+## Core objects
+
+`BNDevice` is the minimal device contract:
+
+```objc
+@protocol BNDevice <NSObject>
+
+@property(nonatomic, copy, readonly) NSString *name;
+@property(nonatomic, assign, readonly) BOOL connected;
+
+- (BOOL)writeData:(NSData *)data error:(NSError **)error;
+- (NSData *)readWithTimeout:(NSTimeInterval)timeout error:(NSError **)error;
+- (BOOL)closeWithError:(NSError **)error;
+
+@end
+```
+
+`BNScript` stores built `NSData`, and `BNWritePipeline` writes to `BNDevice` in `chunkSize` chunks.
+
+## First print
+
+```objc
+#import <Nib/Nib.h>
+
+id<BNDevice> connectedDevice = /* BLE 或平台设备 */;
+
+BNTsplAryten *printer = [[BNTsplAryten alloc] init];
+BNScript *script = [[[[[printer sizeWithWidth:40 height:30]
+    cls]
+    textAtX:20 y:20 content:@"NIB SDK"]
+    print]
+    script];
+
+BNWritePipeline *pipeline = [[BNWritePipeline alloc] initWithDevice:connectedDevice chunkSize:512];
+
+NSError *error = nil;
+BOOL ok = [pipeline writeScript:script error:&error];
+```
+
+If the device uses ESC receipt-style output, you can also use `BNEscBoxliy` to build a `BNScript`. Regardless of dialect, the actual write is handled by `BNDevice` or `BNWritePipeline`.
+
+## BLE integration
+
+The BLE entry point is `BNBleCentral`. A common flow is:
+
+1. Create `BNBleCentral`.
+2. Call `startDiscoveryWithDisconnectConnectedDevice:useMac:timeout:serviceUUIDs:discovered:error:` to scan.
+3. Select a `BNBleDiscoveredDevice`.
+4. Create `BNBleConnectionOptions`, and set service, write, read, write mode, and credit according to the device.
+5. Call `connectDiscoveredDevice:options:completion:` to obtain a `BNBleDevice`.
+6. Generate a script with a dialect builder.
+7. Write through `BNWritePipeline` or `BNBleDevice`.
+
+`BNBleConnectionOptions` can set `writeMode`, corresponding to the with response / without response write modes of `BNBleWriteMode`.
+
+## BLE credit flow control
+
+Credit APIs are in `BNBleCredit.h`:
+
+| API | Purpose |
+| --- | --- |
+| `BNBleCreditOptions` | Configures whether credit is enabled, UUIDs, initial credit, MTU, strategy, and fallback. |
+| `BNBleLaneCreditWriter` | lane-credit writer. |
+| `BNBleSignalCreditWriter` | signal-credit writer. |
+| `BNBleFlowControlStrategy` | Custom flow-control strategy protocol. |
+
+`[BNBleCreditOptions defaultOptions]` uses `FF00` service, `FF02` write, `FF01` read, and `FF03` credit notify, with initial credit `1`, initial MTU `20`, and payload overhead `3`. Normal `BNBleConnectionOptions` does not enable credit by default. Set `creditOptions` only when the device requires credit notifications.
+
+## Receiving, querying, and parsing
+
+Core receive and query types include `BNReceiveSource`, `BNCallbackReceiveSource`, `BNPollingReceiveSource`, `BNReceiveListener`, `BNQueryDispatcher`, `BNPendingQuery`, and `BNResponseMatcher`. BLE devices also expose `receiveSource`, which can be used for notification responses.
+
+Boxliy dialect parser names:
+
+| Dialect | Parser |
+| --- | --- |
+| ESC | `BNEscResponseParser` |
+| TSPL | `BNTsplResponseParser` |
+| CPCL | `BNCpclResponseParser` |
+
+The print session layer should handle "send query command, wait for response, call parser". The UI layer should only display results.
+
+<SdkApiReference sdk="objective-c" locale="root" />
+
+## Practical recommendations
+
+- Validate Bluetooth permissions, foreground/background transitions, reconnects, and continuous printing on real devices.
+- Large images and label templates should be written in chunks through `BNWritePipeline`.
+- UUIDs, write mode, and credit strategy must be confirmed for each specific printer model.
+- In mixed Objective-C and Swift projects, keep the template layer on ordinary SDK types and avoid depending directly on page lifecycle.

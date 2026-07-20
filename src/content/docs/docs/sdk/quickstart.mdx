@@ -1,0 +1,65 @@
+---
+title: Quickstart
+description: Complete one SDK print with the shortest path.
+sidebar:
+  order: 2
+---
+
+The quickstart does one thing: generate a minimal print script and write it to an already connected device object. First get the printer to print one line of text, then add images, QR codes, label templates, or status reads.
+
+## Minimal flow
+
+1. Confirm the printer Family and command family, for example Boxliy + TSPL.
+2. Install the corresponding delivery package in the target language.
+3. Obtain a connected device from the platform connection layer.
+4. Generate a script/bytes with the command builder.
+5. Write the bytes to the device through the write pipeline.
+
+## What is a connected device?
+
+The `device` in examples is not a device automatically scanned by the SDK, and it is not a raw Bluetooth object from a specific platform. It should be a connected device that has already been adapted by the connection layer:
+
+```text
+platform scan/authorization/connection -> transport adapter -> connected device -> writeTo(...)
+```
+
+WeChat, UniApp, Taro, WebUSB, Android Bluetooth, and iOS BLE can all use their own connection methods. Before entering print templates, it is best to normalize them into the same connected device contract.
+
+## TypeScript TSPL example
+
+The following example is for Boxliy printers that support TSPL. Replace it with the corresponding Family and command-family builder for other printers.
+
+```ts
+import { TsplBoxliy, writeTo } from '@boxliy/nib'
+
+const bytes = new TsplBoxliy()
+  .size(60, 40)
+  .gap(2)
+  .cls()
+  .text({ x: 20, y: 20, content: 'NIB SDK' })
+  .print(1)
+  .bytes()
+
+await writeTo(device, bytes)
+```
+
+If you are not sure which TypeScript device package to use yet, you can first write the flow as pseudocode:
+
+```ts
+const device = await connectPrinterFromYourPlatform()
+const bytes = buildReceiptOrLabel()
+await writeTo(device, bytes)
+```
+
+The important point is the boundary: `connectPrinterFromYourPlatform()` handles permissions, scanning, connection, and characteristics. `buildReceiptOrLabel()` only generates print bytes.
+
+## First integration recommendations
+
+| Step | Recommendation |
+| --- | --- |
+| Start with text printing | It is easier to isolate connection issues than with images, barcodes, or label templates. |
+| Start with one fixed printer | Do not mix multiple models and multiple command sets at the beginning. |
+| Record write byte length | This helps determine whether script building failed or the transport write failed. |
+| Keep device logs | Connection, chunking, timeouts, and status responses should all be traceable. |
+
+If minimal text printing is not working yet, do not add images, QR codes, or complex label templates.

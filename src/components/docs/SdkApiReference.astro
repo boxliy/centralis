@@ -1,0 +1,190 @@
+---
+interface ApiRow {
+	owner: string;
+	methods: string;
+	purpose: string;
+	params: string;
+}
+
+interface Props {
+	sdk: 'dart' | 'typescript' | 'java' | 'swift' | 'objective-c';
+	locale?: string;
+}
+
+const { sdk, locale = 'root' } = Astro.props;
+const isChinese = locale === 'zh-hans' || locale === 'zh-hant';
+const t = {
+	title: isChinese ? '方法与命令清单' : 'Methods and Commands',
+	intro: isChinese
+		? '下面列出这个语言 SDK 中常用且对接方需要理解的公开入口。构建器方法会生成对应打印机指令；是否能在某台机器上使用，仍以机器固件支持的 ESC、TSPL、CPCL 或 Lin8inch 指令组为准。'
+		: 'The tables below list the public entry points integration teams usually need. Builder methods generate printer commands; actual availability still depends on the ESC, TSPL, CPCL, or Lin8inch command family supported by the target firmware.',
+	core: isChinese ? 'Core、连接与写入' : 'Core, Connection, and Writing',
+	commands: isChinese ? '指令构建器' : 'Command Builders',
+	responses: isChinese ? '回包解析' : 'Response Parsing',
+	owner: isChinese ? '对象' : 'Object',
+	methods: isChinese ? '方法 / 命令' : 'Method / Command',
+	purpose: isChinese ? '作用' : 'Purpose',
+	params: isChinese ? '参数说明' : 'Parameters',
+};
+
+const sharedPurpose = {
+	device: isChinese ? '抽象真实打印机连接，供模板、写入管线和查询层统一使用。' : 'Abstracts the real printer connection for templates, write pipelines, and query handling.',
+	write: isChinese ? '把已经构建好的字节按分片、超时、取消和流控规则写入设备。' : 'Writes built bytes to a device with chunking, timeout, cancellation, and flow-control rules.',
+	receive: isChinese ? '把设备回包接入监听器或查询分发器，用于状态、电量、型号等查询。' : 'Routes device responses into listeners or query dispatchers for status, battery, model, and similar queries.',
+	ble: isChinese ? '处理 BLE 特征值选择、MTU 分片、credit 通知和 fallback 写入。' : 'Handles BLE characteristic selection, MTU chunking, credit notifications, and fallback writes.',
+	esc: isChinese ? '生成 ESC/Boxliy 基础指令，适合小票、便携打印机和支持 ESC 的机型。' : 'Builds ESC/Boxliy commands for receipt, portable, and ESC-compatible printers.',
+	tspl: isChinese ? '生成 TSPL 标签指令，适合需要纸张尺寸、坐标、条码和二维码的标签模板。' : 'Builds TSPL label commands for templates with paper size, coordinates, barcodes, and QR codes.',
+	cpcl: isChinese ? '生成 CPCL 标签指令，适合 CPCL 机型的页面、文字、线条、条码和图片。' : 'Builds CPCL label commands for page setup, text, lines, barcodes, and images.',
+	linEsc: isChinese ? '在 ESC 基础上增加 Lin8inch 遥测、介质、配网和光栅传输相关命令。' : 'Adds Lin8inch telemetry, media, provisioning, and raster transport commands on top of ESC.',
+	linTspl: isChinese ? '在 TSPL 基础上增加 Lin8inch 状态反馈、介质、色带和出纸配置命令。' : 'Adds Lin8inch status feedback, media, ribbon, and presentation commands on top of TSPL.',
+	response: isChinese ? '把打印机回包解析成状态、电量、文本、MAC、事件或未知响应。' : 'Parses printer responses into status, battery, text, MAC, event, or unknown response objects.',
+};
+
+const data: Record<Props['sdk'], { core: ApiRow[]; commands: ApiRow[]; responses: ApiRow[] }> = {
+	dart: {
+		core: [
+			{ owner: 'ConnectedDevice<T>', methods: 'origin(), deviceName(), deviceMac(), connectionState(), connectionStateChanges(), disconnect(), write(data), read(options)', purpose: sharedPurpose.device, params: isChinese ? '`data` 是待写入字节；`sendDone` 用于平台适配层确认写入完成；`ReadOptions` 控制读取策略。' : '`data` is the byte payload; `sendDone` lets adapters signal completion; `ReadOptions` controls read behavior.' },
+			{ owner: 'WritePipeline', methods: 'write(device, data, options)', purpose: sharedPurpose.write, params: isChinese ? '`device` 为连接；`data` 为字节；`WriteOptions` 包含 `ChunkPolicy`、`WriteMode`、取消、超时、backpressure。' : '`device` is the connection; `data` is the bytes; `WriteOptions` contains `ChunkPolicy`, `WriteMode`, cancellation, timeout, and backpressure.' },
+			{ owner: 'ReceiveSource / QueryDispatcher', methods: 'start(listener), stop(), query(matcher, timeout), cancel(), shutdown()', purpose: sharedPurpose.receive, params: isChinese ? '`matcher` 从原始回包中返回匹配结果；`timeout` 控制等待时间；listener 接收 data/error/closed。' : '`matcher` maps raw responses to results; `timeout` bounds waiting; listeners receive data/error/closed events.' },
+			{ owner: 'BLE credit', methods: 'BleCreditOptions, BleLaneCreditFlowControlStrategy, BleSignalCreditFlowControlStrategy, selectBleCreditCharacteristicPair()', purpose: sharedPurpose.ble, params: isChinese ? '配置 service/write/read/credit UUID、initialCredit、initialMtu、payload overhead、strategy 和 fallbackMode。' : 'Configure service/write/read/credit UUIDs, initialCredit, initialMtu, payload overhead, strategy, and fallbackMode.' },
+		],
+		commands: [
+			{ owner: 'EscBoxliy / EscAryten', methods: 'reset(), raw(), newLine(), feed(), lineRow(), lineDot(), backLineDot(), location(), cut(), lineDotCut(), enable(), stopJob(), wakeup(), batteryVolume(), info(), model(), version(), printerVersion(), name(), mac(), sn(), state(), status(), barcode(), qrcode(), image(), imageGray(), clear(), flush()', purpose: sharedPurpose.esc, params: isChinese ? '文本或字节用 `raw`；行距/定位使用 rows、dots、location；条码二维码传 value/type/height/size/level；图片传 bitmap、byteWidth、height 或 prepared bitmap。' : 'Use `raw` for text or bytes; rows/dots/location control feed and positioning; barcode/QR use value/type/height/size/level; images use bitmap, byteWidth, height, or a prepared bitmap.' },
+			{ owner: 'TsplBoxliy / TsplAryten', methods: 'size(), gap(), bline(), continuous(), label(), direction(), codePage(), speed(), density(), reference(), offset(), shift(), gapSensor(), ribbon(), cut(), tear(), peel(), cls(), text(), barcode(), qrcode(), dmatrix(), line(), box(), circle(), ellipse(), image(), print(), raw(), clear(), flush()', purpose: sharedPurpose.tspl, params: isChinese ? '`size/gap` 使用毫米；图元使用 x/y/width/height/thickness；文字使用 font/rotation/xMul/yMul/content；图片使用 bitmap 或 prepared bitmap。' : '`size/gap` use millimeters; drawing primitives use x/y/width/height/thickness; text uses font/rotation/xMul/yMul/content; images use bitmap or prepared bitmap.' },
+			{ owner: 'CpclBoxliy / CpclAryten', methods: 'begin(), pageWidth(), feed(), gapSense(), barSense(), paperType(), text(), barcode(), qrcode(), line(), box(), bold(), underline(), waterMark(), inverseLine(), image(), form(), print(), status(), realtimeStatus(), sn(), model(), version(), batteryVolume(), raw(), clear(), flush()', purpose: sharedPurpose.cpcl, params: isChinese ? '`begin` 传 height/copies；文字传 font/size/x/y/content/rotation；条码传 type/width/ratio/height/x/y/value；图片传 x/y/bitmap/byteWidth/height。' : '`begin` takes height/copies; text uses font/size/x/y/content/rotation; barcodes use type/width/ratio/height/x/y/value; images use x/y/bitmap/byteWidth/height.' },
+			{ owner: 'EscLin8inch', methods: 'batteryLevel(), extendedModel(), bootVersion(), advancedDensity(), advancedDensityStatus(), mediaProfile(), mediaProfileStatus(), grayMode(), wirelessProvisioning(), wirelessProvisioningStatus(), compressedRasterTransport(), mediaTag(), mediaTagUid(), consumedMediaLength(), remainingMediaLength(), restoreLabelStartPosition(), alternateMotionProfile()', purpose: sharedPurpose.linEsc, params: isChinese ? '`advancedDensity` 传浓度等级；`mediaProfile` 传介质枚举；`wirelessProvisioning` 传 ssid/password/mode。' : '`advancedDensity` takes a density level; `mediaProfile` takes a media enum; `wirelessProvisioning` takes ssid/password/mode.' },
+			{ owner: 'TsplLin8inch', methods: 'automaticStatusFeedback(), printCompletion(), printerStatus(), firmwareVersion(), serialNumber(), macAddress(), deviceSpeed(), deviceSelfTest(), thermalStatus(), productId(), versionInfo(), selfTestPage(), modelSetting(), serialSetting(), versionSetting(), gbkCodepage(), utf8Codepage(), gapDetection(), configureStock(), configurePresentation(), twoColorRibbon(), directThermal()', purpose: sharedPurpose.linTspl, params: isChinese ? '`printCompletion` 传 4 字节 token；`printerStatus` 传状态 flag；`configureStock` 传 sensor、markOrGapMm、offsetMm。' : '`printCompletion` takes a 4-byte token; `printerStatus` takes a status flag; `configureStock` takes sensor, markOrGapMm, and offsetMm.' },
+		],
+		responses: [
+			{ owner: 'EscResponseParser / TsplResponseParser / CpclResponseParser', methods: 'parse(query, data), parse(data)', purpose: sharedPurpose.response, params: isChinese ? '`query` 指定状态、电量、版本、型号、序列号等查询类型；`data` 是设备回包原始字节。' : '`query` identifies status, battery, version, model, serial-number, and similar queries; `data` is the raw response.' },
+		],
+	},
+	typescript: {
+		core: [
+			{ owner: 'ConnectedDevice', methods: 'origin(), deviceName(), connectionState(), disconnect(), canRead(), write(data), read(options), notify(callback), flush()', purpose: sharedPurpose.device, params: isChinese ? '`write/read/notify` 由平台适配器实现；`flush` 清理平台写入队列或缓存。' : '`write/read/notify` are implemented by platform adapters; `flush` clears adapter queues or buffers.' },
+			{ owner: 'writeTo / WriteOptions', methods: 'writeTo(device, data, options), new WriteOptions(enableChunkWrite, chunkSize)', purpose: sharedPurpose.write, params: isChinese ? '`enableChunkWrite` 控制是否分片；`chunkSize` 默认 512；`data` 可来自 builder.bytes()。' : '`enableChunkWrite` toggles chunking; `chunkSize` defaults to 512; `data` can come from builder.bytes().' },
+			{ owner: 'Pen / ReceiveSource / QueryDispatcher', methods: 'append(), appendByte(), appendBytes(), appendText(), bytes(), reset(), start(), stop(), accept(), receive(), query(), cancel(), shutdown()', purpose: sharedPurpose.receive, params: isChinese ? '`append*` 追加字节或文本；查询的 matcher 负责把回包映射成业务结果。' : '`append*` appends bytes or text; query matchers map responses to business results.' },
+			{ owner: 'BLE adapters', methods: 'BleCreditOptions, BleLaneCreditFlowControlStrategy, BleSignalCreditFlowControlStrategy, selectBleCreditCharacteristicPair(), isBleUuidMatch()', purpose: sharedPurpose.ble, params: isChinese ? '配置 UUID、initialCredit、initialMtu、payloadMtu、fallbackMode；平台包负责微信、Taro、UniApp、WebUSB 连接。' : 'Configure UUIDs, initialCredit, initialMtu, payloadMtu, and fallbackMode; platform packages handle WeChat, Taro, UniApp, and WebUSB connections.' },
+		],
+		commands: [
+			{ owner: 'EscBoxliy / EscAryten', methods: 'bytes(), reset(), lineDot(), backLineDot(), batteryVolume(), enable(), getShutdownTime(), learnLabelGap(), line(), location(), mac(), info(), model(), name(), paperType(), position(), printerVersion(), setShutdownTime(), sn(), state(), stopJob(), thickness(), version(), wakeup(), setBTType(), cut(), lineDotCut(), nn(), setCurrentTime(), image()', purpose: sharedPurpose.esc, params: isChinese ? '多数方法无参或使用 number；`setCurrentTime` 传年月日时分秒；`image` 传 x/y/bitmap/byteWidth/height/compress。' : 'Most methods take no arguments or numbers; `setCurrentTime` takes date/time fields; `image` takes x/y/bitmap/byteWidth/height/compress.' },
+			{ owner: 'TsplBoxliy / TsplAryten', methods: 'bytes(), reset(), size(), gap(), bline(), continuous(), label(), cls(), direction(), speed(), density(), reference(), offset(), shift(), ribbon(), tear(), peel(), cut(), print(), bar(), line(), box(), circle(), ellipse(), text(), textBox(), barcode(), qrcode(), dmatrix(), image(), downloadBmp(), putImage()', purpose: sharedPurpose.tspl, params: isChinese ? 'TSPL 方法多使用 options 对象；坐标和尺寸是点或毫米，取决于对应 TSPL 命令；文字/条码/二维码传 content/value、font、rotation、level。' : 'TSPL methods mostly use options objects; coordinates and sizes are dots or millimeters according to the TSPL command; text/barcode/QR use content/value, font, rotation, and level.' },
+			{ owner: 'CpclBoxliy / CpclAryten', methods: 'bytes(), reset(), page(), feed(), form(), print(), gapSense(), pageWidth(), text(), setMag(), bold(), underline(), watermark(), line(), box(), inverse(), barcode(), qrcode(), image(), status(), sn()', purpose: sharedPurpose.cpcl, params: isChinese ? 'CPCL 方法多使用 options 对象；`page` 传 height/copies/pageWidth；图元传坐标、宽高和线宽；图片传 bitmap 或 prepared bitmap。' : 'CPCL methods mostly use options objects; `page` takes height/copies/pageWidth; primitives use coordinates, sizes, and line width; images use bitmap or prepared bitmap.' },
+			{ owner: 'EscLin8inch', methods: 'batteryLevel(), extendedModel(), bootVersion(), advancedDensity(), advancedDensityStatus(), mediaProfile(), mediaProfileStatus(), grayMode(), grayscaleImage(), wirelessProvisioning(), wirelessProvisioningStatus(), compressedRasterTransport(), mediaTag(), mediaTagUid(), consumedMediaLength(), remainingMediaLength(), restoreLabelStartPosition(), alternateMotionProfile()', purpose: sharedPurpose.linEsc, params: isChinese ? '`grayscaleImage` 传图片参数；`wirelessProvisioning` 传 ssid/password/mode；其余多为查询或开关命令。' : '`grayscaleImage` takes image options; `wirelessProvisioning` takes ssid/password/mode; most others are query or switch commands.' },
+			{ owner: 'TsplLin8inch', methods: 'automaticStatusFeedback(), printCompletion(), printerStatus(), firmwareVersion(), serialNumber(), macAddress(), deviceSpeed(), deviceSelfTest(), thermalStatus(), productId(), versionInfo(), selfTestPage(), redDensity(), blackColor(), ribbonEnd(), ribbonEndStatus(), modelSetting(), serialSetting(), versionSetting(), gbkCodepage(), utf8Codepage(), gapDetection()', purpose: sharedPurpose.linTspl, params: isChinese ? '`printCompletion` 传 token；`redDensity/deviceSpeed` 传数字；`printerStatus` 传状态 flag。' : '`printCompletion` takes a token; `redDensity/deviceSpeed` take numbers; `printerStatus` takes a status flag.' },
+		],
+		responses: [
+			{ owner: 'EscResponse / TsplResponse / CpclResponse', methods: 'getQuery(), getType(), getRaw(), getRawHex(), getStatusByte(), getStatusFlags(), hasStatusFlag(), isReady(), getBatteryLevel(), getText(), getMacAddress(), getEventValue(), getDescription()', purpose: sharedPurpose.response, params: isChinese ? 'ESC 有事件值；TSPL/CPCL 主要返回状态、电量、文本、MAC 和描述。' : 'ESC includes event values; TSPL/CPCL mainly expose status, battery, text, MAC, and descriptions.' },
+		],
+	},
+	java: {
+		core: [
+			{ owner: 'Device / Script', methods: 'name(), connected(), write(data), read(timeoutMs), close(), binary(), hex(), base64(), string(), length()', purpose: sharedPurpose.device, params: isChinese ? '`timeoutMs` 是读取超时；`Script` 用于查看或保存构建后的字节。' : '`timeoutMs` is the read timeout; `Script` is used to inspect or store built bytes.' },
+			{ owner: 'WritePipeline / WriteOptions', methods: 'write(device, data, options, listener), withChunkPolicy(), withMode(), withCancellationToken(), withTimeout(), withBackpressure()', purpose: sharedPurpose.write, params: isChinese ? '`ChunkPolicy.fixed(size)` 控制分片；listener 接收 `WriteProgress`；返回 `WriteResult`。' : '`ChunkPolicy.fixed(size)` controls chunking; listener receives `WriteProgress`; returns `WriteResult`.' },
+			{ owner: 'PrinterDiscovery / PrinterConnector', methods: 'scan(), stop(), connect(printer, options), disconnect(), state()', purpose: isChinese ? '扫描、连接和断开打印机，适合把平台连接层统一成 NIB core。' : 'Scans, connects, and disconnects printers so platform connections can be unified under NIB core.', params: isChinese ? '`ConnectionOptions` 包含 transport、timeoutMs、autoReconnect。' : '`ConnectionOptions` contains transport, timeoutMs, and autoReconnect.' },
+			{ owner: 'ReceiveSource / QueryDispatcher', methods: 'start(listener), stop(), accept(data), receive(data), query(matcher, timeoutMs), cancel(), shutdown()', purpose: sharedPurpose.receive, params: isChinese ? '`ResponseMatcher` 返回匹配结果；`PendingQuery` 可 `get()` 或带超时等待。' : '`ResponseMatcher` returns a matched result; `PendingQuery` can `get()` with or without timeout.' },
+		],
+		commands: [
+			{ owner: 'EscBoxliy / EscAryten', methods: 'of(), newLine(), location(), image(), line(), cut(), feed(), lineRow(), lineDot(), backLineDot(), enable(), wakeup(), position(), stopJob(), setBTType(), lineDotCut(), thickness(), learnLabelGap(), paperType(), batteryVolume(), info(), model(), version(), printerVersion(), sn(), state(), status(), name(), mac(), reset(), raw(), imageGray(), build(), write(), clear()', purpose: sharedPurpose.esc, params: isChinese ? '`of` 可传 device/charset；`raw` 传模板和参数；`write(chunkSize, progress)` 直接写设备。' : '`of` accepts device/charset; `raw` accepts a template and args; `write(chunkSize, progress)` writes directly.' },
+			{ owner: 'TsplBoxliy / TsplAryten', methods: 'of(), size(), gap(), bline(), continuous(), label(), direction(), codePage(), speed(), density(), reference(), offset(), shift(), gapSensor(), ribbon(), cut(), tear(), peel(), detect(), readState(), status(), state(), realtimeStatus(), sn(), sns(), version(), versions(), model(), models(), batteryVolume(), cls(), text(), barcode(), qrcode(), dmatrix(), line(), box(), circle(), ellipse(), image(), print(), raw(), build(), write(), clear()', purpose: sharedPurpose.tspl, params: isChinese ? '坐标/尺寸为 int；枚举包括 Direction、Mirror、CodePage、Font、Rotation、BarcodeType、QrLevel。' : 'Coordinates and sizes are ints; enums include Direction, Mirror, CodePage, Font, Rotation, BarcodeType, and QrLevel.' },
+			{ owner: 'CpclBoxliy / CpclAryten', methods: 'of(), begin(), pageWidth(), feed(), gapSense(), barSense(), paperType(), text(), barcode(), qrcode(), line(), box(), bold(), underline(), waterMark(), inverseLine(), image(), form(), print(), status(), realtimeStatus(), sn(), model(), version(), batteryVolume(), raw(), build(), write(), clear()', purpose: sharedPurpose.cpcl, params: isChinese ? '纸张、文字、条码、二维码、线框和图片参数与 CPCL 命令一致；`PaperType` 决定 gap/bar sensing。' : 'Page, text, barcode, QR, line, box, and image parameters follow CPCL commands; `PaperType` controls gap/bar sensing.' },
+			{ owner: 'EscLin8inch', methods: 'of(), batteryLevel(), extendedModel(), bootVersion(), advancedDensity(), advancedDensityStatus(), grayMode(), mediaProfile(), mediaProfileStatus(), wirelessProvisioning(), wirelessProvisioningStatus(), compressedRasterTransport(), mediaTag(), mediaTagUid(), consumedMediaLength(), remainingMediaLength(), restoreLabelStartPosition(), alternateMotionProfile()', purpose: sharedPurpose.linEsc, params: isChinese ? 'Lin8inch 扩展多用于查询、介质配置和 WiFi 配网；机型不支持时不要调用。' : 'Lin8inch extensions are mainly for queries, media configuration, and WiFi provisioning; do not call them on unsupported models.' },
+			{ owner: 'TsplLin8inch', methods: 'of(), automaticStatusFeedback(), printCompletion(), printerStatus(), firmwareVersion(), serialNumber(), macAddress(), deviceSpeed(), deviceSelfTest(), thermalStatus(), productId(), versionInfo(), selfTestPage(), modelSetting(), serialSetting(), versionSetting(), gbkCodepage(), utf8Codepage(), gapDetection(), configureStock(), configurePresentation(), twoColorRibbon(), directThermal()', purpose: sharedPurpose.linTspl, params: isChinese ? '传入 boolean、speed、状态 flag、stock sensor、presentation mode、mark/gap 和 offset。' : 'Accepts booleans, speed, status flags, stock sensors, presentation mode, mark/gap, and offset.' },
+		],
+		responses: [
+			{ owner: 'EscResponseParser / TsplResponseParser / CpclResponseParser', methods: 'parse(raw), parse(query, raw)', purpose: sharedPurpose.response, params: isChinese ? '`raw` 为 byte[]；返回对象可读取 type、rawHex、statusFlags、isReady、batteryLevel、text、macAddress、description。' : '`raw` is byte[]; response objects expose type, rawHex, statusFlags, isReady, batteryLevel, text, macAddress, and description.' },
+		],
+	},
+	swift: {
+		core: [
+			{ owner: 'NibDevice / NibScript', methods: 'write(_ data), read(maxLength), close(), length, string, hexString', purpose: sharedPurpose.device, params: isChinese ? '`maxLength` 限制读取长度；`NibScript` 包装构建好的 Data。' : '`maxLength` limits read size; `NibScript` wraps built Data.' },
+			{ owner: 'NibPen / NibWritePipeline', methods: 'append(bytes), append(data), append(text), crlf(), clear(), reset(), write(script, to), write(data, to)', purpose: sharedPurpose.write, params: isChinese ? '`chunkSize` 在 pipeline 初始化时配置；返回实际写入字节数。' : '`chunkSize` is configured when constructing the pipeline; returns written byte count.' },
+			{ owner: 'NibBleCentral / NibBleDevice', methods: 'startDiscovery(), stopDiscovery(), connect(), disconnect(), discover(options), write(), read(), close()', purpose: sharedPurpose.ble, params: isChinese ? '`NibBleConnectionOptions` 配置 service/write/read UUID、timeout、writeMode 和 credit。' : '`NibBleConnectionOptions` configures service/write/read UUIDs, timeouts, writeMode, and credit.' },
+			{ owner: 'NibReceiveSource / NibQueryDispatcher', methods: 'start(listener), stop(), accept(), receive(), query(timeout, matcher), wait(), cancel(), shutdown(), dataStream()', purpose: sharedPurpose.receive, params: isChinese ? '`matcher` 返回泛型响应；`wait(timeout:)` 用于同步等待查询结果。' : '`matcher` returns a typed response; `wait(timeout:)` waits for query completion.' },
+		],
+		commands: [
+			{ owner: 'NibEscBoxliy / NibEscAryten', methods: 'reset(), text(), newLine(), bold(), underline(), fontSize(), lineRow(), feed(), lineDot(), backLineDot(), location(), cut(), lineDotCut(), batteryVolume(), info(), model(), version(), printerVersion(), name(), mac(), sn(), state(), status(), enable(), stopJob(), wakeup(), barcode(), qrcode(), image(), raw(), clear()', purpose: sharedPurpose.esc, params: isChinese ? 'Swift ESC 直接支持 `text`；条码/二维码/图片参数与方法签名一致。' : 'Swift ESC directly supports `text`; barcode, QR, and image parameters follow the method signatures.' },
+			{ owner: 'NibTsplBoxliy / NibTsplAryten', methods: 'size(), cls(), print(), gap(), text(), barcode(), qrcode(), bitmap(), status(), state(), batteryVolume(), version(), versions(), model(), models(), sn(), sns(), raw(), clear()', purpose: sharedPurpose.tspl, params: isChinese ? '`text` 传 x/y/font/rotation/xMulti/yMulti/content；`bitmap` 传 Data 或 prepared bitmap。' : '`text` takes x/y/font/rotation/xMulti/yMulti/content; `bitmap` takes Data or a prepared bitmap.' },
+			{ owner: 'NibCpclBoxliy / NibCpclAryten', methods: 'begin(), pageWidth(), text(), barcode(), qrcode(), line(), box(), image(), form(), print(), status(), sn(), model(), version(), batteryVolume(), raw(), clear()', purpose: sharedPurpose.cpcl, params: isChinese ? '`begin` 传 height/copies；`line/box` 传坐标和 thickness；`image` 传 data/byteWidth/height/compress。' : '`begin` takes height/copies; `line/box` take coordinates and thickness; `image` takes data/byteWidth/height/compress.' },
+		],
+		responses: [
+			{ owner: 'NibEscResponseParser / NibTsplResponseParser / NibCpclResponseParser', methods: 'parse(raw), parse(query, raw)', purpose: sharedPurpose.response, params: isChinese ? '返回结构包含 query、type、raw、rawHex、statusByte、statusFlags、isReady、电量、文本、描述等字段。' : 'Returned structs include query, type, raw, rawHex, statusByte, statusFlags, isReady, battery, text, and description fields.' },
+		],
+	},
+	'objective-c': {
+		core: [
+			{ owner: 'BNDevice / BNScript', methods: 'writeData:error:, readWithTimeout:error:, closeWithError:, data, hexString, base64String, stringValue, length', purpose: sharedPurpose.device, params: isChinese ? 'Objective-C 使用 NSError 指针返回错误；BNScript 保存 NSData。' : 'Objective-C reports failures through NSError pointers; BNScript stores NSData.' },
+			{ owner: 'BNWritePipeline / BNPen', methods: 'initWithDevice:chunkSize:, writeData:error:, writeScript:error:, appendByte:, appendBytes:length:, appendData:, appendText:, appendCRLF, clear, reset', purpose: sharedPurpose.write, params: isChinese ? '`chunkSize` 控制分片；BNPen 用于手工追加字节和文本。' : '`chunkSize` controls chunking; BNPen manually appends bytes and text.' },
+			{ owner: 'BNBleCentral / BNBleDevice', methods: 'startDiscoveryWithDisconnectConnectedDevice:timeout:handler:, stopDiscovery, connectDiscoveredDevice:options:completion:, disconnectCurrentDevice, writeData:error:, readWithTimeout:error:', purpose: sharedPurpose.ble, params: isChinese ? '`BNBleConnectionOptions` 配置 UUID、timeout、writeMode、credit 和 flowControl。' : '`BNBleConnectionOptions` configures UUIDs, timeouts, writeMode, credit, and flowControl.' },
+			{ owner: 'BNReceiveSource / BNQueryDispatcher', methods: 'startWithListener:, stop, acceptData:, queryWithMatcher:timeout:, cancelQuery:error:, shutdown', purpose: sharedPurpose.receive, params: isChinese ? 'matcher block 从 NSData 中返回结果；listener 接收 data/error/closed。' : 'The matcher block returns a result from NSData; listeners receive data/error/closed events.' },
+		],
+		commands: [
+			{ owner: 'BNEscBoxliy / BNEscAryten', methods: 'reset, text:, newLine, bold:, underline:, fontWidth:height:, lineRow:, feed:, lineDot:, backLineDot:, location:, cut, lineDotCut, batteryVolume, info, model, version, printerVersion, name, mac, sn, state, status, enable, stopJob, wakeup, wakeupWithLength:, barcodeValue:type:height:, qrcodeValue:size:level:, imageData:byteWidth:height:, imagePreparedBitmap:, rawData:, clear', purpose: sharedPurpose.esc, params: isChinese ? '参数名跟 Objective-C selector 对应；图片传 NSData、byteWidth、height 或 PXPreparedBitmap。' : 'Parameters follow Objective-C selectors; images take NSData, byteWidth, height, or PXPreparedBitmap.' },
+			{ owner: 'BNTsplBoxliy / BNTsplAryten', methods: 'sizeWithWidth:height:, cls, print, printWithCopies:, density:, speed:, direction:mirror:, gap:, gapWithHeight:offset:, blineWithHeight:offset:, continuous, labelWithHeight:offset:, offset:, ribbon:, shift:, referenceWithHorizontal:vertical:, cut:, tear:, peel:, status, state, batteryVolume, version, versions, model, models, sn, sns, textAtX:y:content:, textAtX:y:font:rotation:xMulti:yMulti:content:, barcodeAtX:y:value:, qrcodeAtX:y:value:cellWidth:level:version:, bitmapAtX:y:data:byteWidth:height:, raw:, rawData:, clear', purpose: sharedPurpose.tspl, params: isChinese ? '纸张使用 width/height/gap/offset；图元使用 x/y；二维码使用 cellWidth、level、version。' : 'Paper uses width/height/gap/offset; elements use x/y; QR uses cellWidth, level, and version.' },
+			{ owner: 'BNCpclBoxliy / BNCpclAryten', methods: 'beginWithHeight:copies:, pageWidth:, textWithFont:size:x:y:content:, barcodeAtX:y:value:, barcodeType:width:ratio:height:x:y:value:rotation:, qrcodeAtX:y:value:cellWidth:level:, lineFromX:y:toX:y:thickness:dashed:, boxFromX:y:toX:y:thickness:, imageAtX:y:data:byteWidth:height:, bold:, underline:, waterMark:, gapSense, form, print, status, sn, model, version, batteryVolume, raw:, rawData:, clear', purpose: sharedPurpose.cpcl, params: isChinese ? 'CPCL selector 已把参数语义写在名字中；注意坐标、尺寸和线宽单位以机型 DPI 为准。' : 'CPCL selectors carry parameter meaning in their names; coordinate, size, and thickness units depend on model DPI.' },
+			{ owner: 'BNEscLin8inch / BNTsplLin8inch', methods: 'batteryLevel, extendedModel, bootVersion, advancedDensity:, mediaProfile:, wirelessProvisioningWithSSID:password:mode:, compressedRasterTransport, automaticStatusFeedback:, printCompletionD1:d2:d3:d4:, printerStatus:, configureStock:markOrGapMm:offsetMm:, configurePresentation:, twoColorRibbon:, directThermal', purpose: isChinese ? 'Lin8inch 扩展方法，覆盖 ESC 和 TSPL 两个指令组。' : 'Lin8inch extension methods across ESC and TSPL command families.', params: isChinese ? '配网传 SSID/password/mode；状态反馈传 flag 或 token；介质配置传 sensor、mark/gap 和 offset。' : 'Provisioning takes SSID/password/mode; status feedback takes a flag or token; media configuration takes sensor, mark/gap, and offset.' },
+		],
+		responses: [
+			{ owner: 'BNEscResponseParser / BNTsplResponseParser / BNCpclResponseParser', methods: 'parseData:, parseQuery:data:, hexStringForData:', purpose: sharedPurpose.response, params: isChinese ? '返回对象包含 query、type、rawData、rawHex、statusByte、statusFlags、isReady、batteryLevel、text、macAddress、description。' : 'Response objects include query, type, rawData, rawHex, statusByte, statusFlags, isReady, batteryLevel, text, macAddress, and description.' },
+		],
+	},
+};
+
+const current = data[sdk];
+---
+
+<section class="sdk-api-reference">
+	<h2>{t.title}</h2>
+	<p>{t.intro}</p>
+
+	<h3>{t.core}</h3>
+	<table>
+		<thead>
+			<tr><th>{t.owner}</th><th>{t.methods}</th><th>{t.purpose}</th><th>{t.params}</th></tr>
+		</thead>
+		<tbody>
+			{current.core.map((row) => (
+				<tr>
+					<td><code>{row.owner}</code></td>
+					<td><code>{row.methods}</code></td>
+					<td>{row.purpose}</td>
+					<td>{row.params}</td>
+				</tr>
+			))}
+		</tbody>
+	</table>
+
+	<h3>{t.commands}</h3>
+	<table>
+		<thead>
+			<tr><th>{t.owner}</th><th>{t.methods}</th><th>{t.purpose}</th><th>{t.params}</th></tr>
+		</thead>
+		<tbody>
+			{current.commands.map((row) => (
+				<tr>
+					<td><code>{row.owner}</code></td>
+					<td><code>{row.methods}</code></td>
+					<td>{row.purpose}</td>
+					<td>{row.params}</td>
+				</tr>
+			))}
+		</tbody>
+	</table>
+
+	<h3>{t.responses}</h3>
+	<table>
+		<thead>
+			<tr><th>{t.owner}</th><th>{t.methods}</th><th>{t.purpose}</th><th>{t.params}</th></tr>
+		</thead>
+		<tbody>
+			{current.responses.map((row) => (
+				<tr>
+					<td><code>{row.owner}</code></td>
+					<td><code>{row.methods}</code></td>
+					<td>{row.purpose}</td>
+					<td>{row.params}</td>
+				</tr>
+			))}
+		</tbody>
+	</table>
+</section>

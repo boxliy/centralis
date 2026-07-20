@@ -1,0 +1,139 @@
+---
+title: Java SDK
+description: 面向 Java、Android、網路列印和藍牙列印的 NIB SDK 接入說明。
+sidebar:
+  order: 4
+---
+
+import SdkApiReference from '../../../../../components/docs/SdkApiReference.astro';
+
+
+Java SDK 適合 Android 應用、JVM 工具、網路印表機和經典藍牙連線。接入時先把真實連線包裝成 `Device`，再讓範本建構 `Script` 或直接通過寫入管線傳送位元組。
+
+## Maven 模組
+
+Maven group 是 `com.boxliy.nib`。
+
+| 模組 | 用途 |
+| --- | --- |
+| `nib` | 標準聚合版，適合產品整合。 |
+| `nib-core` | `Device`、`Script`、`WritePipeline`、接收源和查詢分發。 |
+| `nib-esc-boxliy`、`nib-tspl-boxliy`、`nib-cpcl-boxliy` | Boxliy 方言建構器和回應解析器。 |
+| `nib-esc`、`nib-tspl`、`nib-cpcl` | Aryten 相容方言。 |
+| `nib-esc-lin8inch`、`nib-tspl-lin8inch` | Lin8inch 方言。 |
+| `nib-network` | TCP/IP 網路印表機連線。 |
+| `nib-bluetooth` | Java 經典藍牙抽象。 |
+| Android classic 轉接 | 倉庫中有 Android 經典藍牙轉接原始碼；是否作為獨立交付模組，以實際交付版本為準。 |
+
+原始碼中沒有確認到 Java BLE 模組；Android BLE 如需接入，應按交付版本或專案轉接層確認，不要按經典藍牙模組推斷。
+
+## Core 物件
+
+`Device` 是最小裝置合約：
+
+```java
+public interface Device {
+  String name();
+  boolean connected();
+  void write(byte[] data) throws IOException;
+  byte[] read(int timeoutMs) throws IOException;
+  void close() throws IOException;
+}
+```
+
+`Script` 儲存建構好的位元組，提供 `binary()`、`hex()`、`base64()`、`string()` 和 `length()`。`WritePipeline` 負責分片寫入，`WriteOptions` 配置 `ChunkPolicy`、`WriteMode`、取消、逾時和 backpressure，回傳 `WriteResult`。
+
+預設分片大小來自 `NibDefaults.CHUNK_SIZE`，目前是 `1024` 位元組。
+
+## 第一次列印
+
+Java 的 `EscBoxliy` 沒有 `text()` 方法，一般文字請使用 `raw(...)`：
+
+```java
+import com.boxliy.nib.core.Device;
+import com.boxliy.nib.esc.EscBoxliy;
+
+Device device = Device.none();
+
+EscBoxliy.of(device)
+    .reset()
+    .raw("NIB SDK\r\n")
+    .feed(2)
+    .write();
+```
+
+`Device.none()` 適合測試指令碼產生，不會連線實際印表機。實際專案裡傳入網路、經典藍牙或 Android classic 連線得到的 `Device`。
+
+需要先建構指令碼再寫入時：
+
+```java
+import com.boxliy.nib.core.WriteOptions;
+import com.boxliy.nib.core.WritePipeline;
+import com.boxliy.nib.core.WriteResult;
+import com.boxliy.nib.tspl.TsplAryten;
+
+byte[] data = TsplAryten.of()
+    .size(40, 30)
+    .cls()
+    .text(20, 20, "NIB SDK")
+    .print(1)
+    .build()
+    .binary();
+
+WriteResult result = WritePipeline.write(
+    device,
+    data,
+    WriteOptions.defaults(),
+    null
+);
+```
+
+## 網路列印
+
+`nib-network` 提供 `Network.connect(...)`：
+
+```java
+import com.boxliy.nib.core.Device;
+import com.boxliy.nib.network.Network;
+
+Device device = Network.connect("192.168.1.50", 9100);
+```
+
+預設連線逾時是 `10000` ms，也可以呼叫 `Network.connect(host, port, timeoutMs)`。網路列印前要確認 host、port、逾時、重試和日誌策略；日誌可以記錄端點和位元組長度，但不要記錄敏感列印內容。
+
+## Android 和經典藍牙
+
+Java 倉庫裡確認到 `nib-bluetooth`，並有 Android classic 轉接原始碼。Android classic 接入時通常需要：
+
+1. 按 Android 版本申請藍牙權限。
+2. 掃描或選擇已配對裝置。
+3. 建立經典藍牙 socket。
+4. 包裝成 `Device`。
+5. 使用方言建構器產生 `Script`。
+6. 通過建構器 `write()` 或 `WritePipeline.write(...)` 傳送。
+7. 頁面銷燬或會話結束時關閉連線。
+
+權限、生命週期和重連邏輯不要寫進列印範本。
+
+## 接收、查詢和解析
+
+core 提供 `ReceiveSource`、`PollingReceiveSource`、`CallbackReceiveSource`、`ReceiveListener`、`QueryDispatcher`、`PendingQuery` 和 `ResponseMatcher`。
+
+Boxliy 方言 parser 名稱：
+
+| 方言 | 解析器 |
+| --- | --- |
+| ESC | `EscResponseParser` |
+| TSPL | `TsplResponseParser` |
+| CPCL | `CpclResponseParser` |
+
+狀態、電量、型號、序列號等查詢都應放在會話層統一處理，併為裝置韌體設定合理逾時。
+
+<SdkApiReference sdk="java" locale="zh-hant" />
+
+## 實戰建議
+
+- 先確認機型支援的方言，再選擇 `EscBoxliy`、`TsplBoxliy`、`CpclBoxliy` 或 Aryten/Lin8inch 建構器。
+- Android classic 與 JVM classic 連線方式不同，範本層不要依賴平台類。
+- 大圖片和連續列印必須通過真實裝置驗證分片大小。
+- 混淆時保留交付套件要求保留的公開 SDK API。

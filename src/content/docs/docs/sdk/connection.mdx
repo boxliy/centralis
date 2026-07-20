@@ -1,0 +1,65 @@
+---
+title: Device Connection
+description: How the SDK adapts platform devices into a unified connected device.
+sidebar:
+  order: 5
+---
+
+SDK print templates do not directly operate on platform Bluetooth, USB, or network APIs. The connection layer is responsible for scanning, authorization, connecting, and subscribing to notifications, then wrapping the platform object as a connected device. The print layer only sees a unified write/read interface.
+
+This boundary matters: template code should be able to generate the same TSPL, ESC, or CPCL bytes without knowing whether the transport is WeChat BLE or iOS CoreBluetooth.
+
+## Responsibility boundary
+
+| Layer | Responsibility |
+| --- | --- |
+| Platform API | Scan, authorize, connect, disconnect, discover services/characteristics, and subscribe to notifications. |
+| Transport adapter | Wrap platform APIs as connected devices and hide platform callbacks, permissions, and raw handles. |
+| Session | Select templates, call the write pipeline, record logs, handle status, timeouts, retries, and errors. |
+| Template | Generate only ESC, TSPL, or CPCL bytes. It does not handle Bluetooth permissions, sockets, USB endpoints, or network reconnects. |
+
+With this split, the same print template can be reused across different runtimes.
+
+## Connected device contract
+
+Interface names differ by language, but they all express the same idea: this is an already connected object that can write bytes and, when supported, read responses.
+
+| Language | Core interface | Main methods |
+| --- | --- | --- |
+| TypeScript | `ConnectedDevice` | `write(data)`, `read(options)`, `notify(callback)`, `disconnect()`, `connectionState()` |
+| Dart | `ConnectedDevice<T>` | `write(data)`, `read(options)`, `disconnect()`, `connectionStateChanges()` |
+| Java | `Device` | `write(byte[])`, `read(timeoutMs)`, `close()`, `connected()` |
+| Objective-C | `BNDevice` | `writeData:error:`, `readWithTimeout:error:`, `closeWithError:` |
+| Swift | `NibDevice` | `write(_:)`, `read(maxLength:)`, `close()`, `connected` |
+
+If the platform cannot read responses, you can implement the write path first. Add read, notify, or receive source later when status reads are required.
+
+## Common connection types
+
+| Type | Notes |
+| --- | --- |
+| BLE | Common on mobile and mini-programs. Requires permissions, service/characteristic handling, chunking, write mode, and notifications. |
+| Classic Bluetooth | Common on Android and some desktop scenarios. Focus on pairing, sockets, and reconnect behavior. |
+| USB / WebUSB | Suitable for browsers, desktop, or bridge scenarios. Requires user authorization and endpoint handling. |
+| Network | Suitable for LAN or Ethernet-bridge devices. Requires connection timeout and retry handling. |
+
+## BLE characteristic notes
+
+A successful BLE connection does not mean printing is ready. You also need to confirm:
+
+| Item | Notes |
+| --- | --- |
+| service UUID | Search for print characteristics only inside allowed services. |
+| write characteristic | Must support `write` or `writeWithoutResponse`. |
+| read/notify characteristic | Status reads or credit flow control require readable or notifiable characteristics, or a combined write characteristic. |
+| Automatic selection strategy | TypeScript BLE core supports selecting write/notify/read by properties, and also supports specifying allowed write/read characteristics. In production, record the final selected UUIDs. |
+| Chunk size | A common conservative value is 20 bytes. It can also be calculated from the negotiated MTU or platform maximum write length. |
+| credit/flow control | Some BLE devices control write pacing through notifications. Until this is confirmed, do not assume unlimited continuous writes are safe. |
+
+## Recommended structure
+
+1. `connectPrinter()` only returns a connected device.
+2. `buildReceipt()` or `buildLabel()` only generates commands.
+3. `printJob()` handles connection, writes, status reads, and error handling.
+
+Do not concatenate commands directly in page components, and do not write Bluetooth permission logic inside print templates.
