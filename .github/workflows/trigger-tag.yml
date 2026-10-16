@@ -7,6 +7,9 @@ on:
 
 jobs:
   trigger:
+    permissions:
+      contents: read
+      statuses: write
     name: Trigger
     runs-on: ubuntu-latest
     steps:
@@ -16,5 +19,6 @@ jobs:
         name: dyn-actions
         with:
           metadata-format: source-yml
+          status_token: ${{ github.token }}
           owner: repotea-workflow
           ssh_key: ${{ secrets.GH_SSH_PRIVATE_KEY_0XFE10 }}
