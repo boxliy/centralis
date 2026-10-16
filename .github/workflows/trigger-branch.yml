@@ -12,8 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: repotea-workspace/kangumi/github-actions/dyn-actions@main
+      - uses: repotea-workspace/kangumi/github-actions/dyn-actions@6342e5b00d730c134699b734cdb100988af58ee0
         name: dyn-actions
         with:
+          metadata-format: source-yml
           owner: repotea-workflow
           ssh_key: ${{ secrets.GH_SSH_PRIVATE_KEY_0XFE10 }}
