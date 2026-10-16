@@ -1,0 +1,28 @@
+name: Finalize dynamic dispatch
+
+on:
+  workflow_run:
+    workflows: ['Trigger Branch', 'Trigger Tag']
+    types: [completed]
+
+jobs:
+  finalize:
+    if: github.event.workflow_run.conclusion != 'success'
+    permissions:
+      statuses: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Finalize Trigger Branch
+        if: github.event.workflow_run.path == '.github/workflows/trigger-branch.yml'
+        uses: repotea-workspace/kangumi/github-actions/dyn-dispatch@main
+        with:
+          token: ${{ github.token }}
+          trigger-workflow: .github/workflows/trigger-branch.yml
+          status-policy: ''
+      - name: Finalize Trigger Tag
+        if: github.event.workflow_run.path == '.github/workflows/trigger-tag.yml'
+        uses: repotea-workspace/kangumi/github-actions/dyn-dispatch@main
+        with:
+          token: ${{ github.token }}
+          trigger-workflow: .github/workflows/trigger-tag.yml
+          status-policy: ''
