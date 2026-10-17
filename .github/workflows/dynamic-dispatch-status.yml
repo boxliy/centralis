@@ -1,13 +1,47 @@
 name: Finalize dynamic dispatch
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+      && format('Status report · {0} · {1}', inputs.execution_sha, inputs.notification_id)
+      || 'Finalize dynamic dispatch' }}
 
 on:
   workflow_run:
     workflows: ['Trigger Branch', 'Trigger Tag']
     types: [completed]
 
+  workflow_dispatch:
+    inputs:
+      execution_repository:
+        description: Trusted execution repository
+        required: true
+        type: string
+      execution_sha:
+        description: Full execution commit SHA
+        required: true
+        type: string
+      notification_id:
+        description: Unique receiver notification ID
+        required: true
+        type: string
+      run_id:
+        description: Triggering execution run ID
+        required: false
+        type: string
+        default: ''
+      run_attempt:
+        description: Triggering execution run attempt
+        required: false
+        type: string
+        default: ''
+      run_status:
+        description: Triggering execution run status
+        required: false
+        type: string
+        default: ''
+
 jobs:
   finalize:
-    if: github.event.workflow_run.conclusion != 'success'
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
     permissions:
       statuses: write
     runs-on: ubuntu-latest
@@ -26,3 +60,24 @@ jobs:
           token: ${{ github.token }}
           trigger-workflow: .github/workflows/trigger-tag.yml
           status-policy: ''
+
+  report:
+    name: Report dynamic CI status
+    if: github.event_name == 'workflow_dispatch' && inputs.execution_repository == 'repotea-workflow/dynamic-actions'
+    permissions:
+      actions: read
+      contents: read
+      statuses: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    concurrency:
+      group: source-dynamic-status-${{ inputs.execution_repository }}-${{ inputs.execution_sha }}
+      cancel-in-progress: false
+    steps:
+      - name: Report dynamic CI status
+        uses: repotea-workspace/kangumi/github-actions/dyn-status@main
+        with:
+          mode: source
+          execution-repository: repotea-workflow/dynamic-actions
+          execution-token: ${{ github.token }}
+          source-token: ${{ github.token }}
