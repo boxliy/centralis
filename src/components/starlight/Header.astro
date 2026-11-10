@@ -6,11 +6,11 @@ const locale = Astro.locals.starlightRoute.locale || 'root';
 const prefix = locale === 'root' ? '' : `/${locale}`;
 const homeHref = prefix ? `${prefix}/` : '/';
 const nav = {
-	root: [['Home', homeHref], ['Docs', `${prefix}/docs/`], ['Contact', `${prefix}/#contact`]],
-	'zh-hans': [['官网', homeHref], ['文档', `${prefix}/docs/`], ['联系', `${prefix}/#contact`]],
-	'zh-hant': [['官網', homeHref], ['文檔', `${prefix}/docs/`], ['聯絡', `${prefix}/#contact`]],
-	ko: [['홈', homeHref], ['문서', `${prefix}/docs/`], ['문의', `${prefix}/#contact`]],
-	ja: [['公式サイト', homeHref], ['ドキュメント', `${prefix}/docs/`], ['お問い合わせ', `${prefix}/#contact`]],
+	root: [['Home', homeHref], ['Docs', `${prefix}/docs/`], ['Contact', '#wechat-contact']],
+	'zh-hans': [['官网', homeHref], ['文档', `${prefix}/docs/`], ['联系', '#wechat-contact']],
+	'zh-hant': [['官網', homeHref], ['文檔', `${prefix}/docs/`], ['聯絡', '#wechat-contact']],
+	ko: [['홈', homeHref], ['문서', `${prefix}/docs/`], ['문의', '#wechat-contact']],
+	ja: [['公式サイト', homeHref], ['ドキュメント', `${prefix}/docs/`], ['お問い合わせ', '#wechat-contact']],
 };
 const navItems = nav[locale as keyof typeof nav] ?? nav.root;
 ---

@@ -1,5 +1,6 @@
 ---
 import { defaultLocale, getHomeCopy, getLocalePath, localeLabels, locales, type Locale, withProductAssets } from '../i18n/home';
+import WechatContact from './WechatContact.astro';
 
 interface Props {
 	locale?: Locale;
@@ -307,7 +308,13 @@ const contactEmail = 'hello@qishusolution.com';
 
 				<section id="contact" aria-labelledby="contact-title">
 					<div class="contact">
-						<div class="reveal"><div class="eyebrow">{t.contact.eyebrow}</div><h2 id="contact-title">{t.contact.title}</h2><p class="hero-copy">{t.contact.copy}</p><div class="copy-line"><span>{t.contact.emailIntro}</span><button class="copy-email" type="button" data-copy={contactEmail}>{t.contact.copyEmail}</button></div></div>
+						<div class="reveal">
+							<div class="eyebrow">{t.contact.eyebrow}</div>
+							<h2 id="contact-title">{t.contact.title}</h2>
+							<p class="hero-copy">{t.contact.copy}</p>
+							<WechatContact locale={locale} />
+							<div class="copy-line"><span>{t.contact.emailIntro}</span><button class="copy-email" type="button" data-copy={contactEmail}>{t.contact.copyEmail}</button></div>
+						</div>
 						<form class="contact-form reveal" novalidate>
 							<label>{t.contact.name}<input name="name" autocomplete="name" placeholder={t.contact.namePlaceholder} required /></label>
 							<label>{t.contact.email}<input name="email" type="email" autocomplete="email" placeholder={t.contact.emailPlaceholder} required /></label>

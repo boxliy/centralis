@@ -1,0 +1,127 @@
+---
+import type { Locale } from '../i18n/home';
+import { getContactCopy, wechatContact } from '../i18n/contact';
+
+interface Props {
+	locale: Locale;
+	variant?: 'home' | 'docs';
+}
+
+const { locale, variant = 'home' } = Astro.props;
+const t = getContactCopy(locale);
+const Heading = variant === 'docs' ? 'h2' : 'h3';
+---
+
+<section id="wechat-contact" class:list={['wechat-contact', `wechat-contact--${variant}`]} aria-labelledby="wechat-contact-title" data-wechat-contact>
+	<div class="wechat-details">
+		<Heading id="wechat-contact-title">{t.title}</Heading>
+		<p class="wechat-description">{t.body}</p>
+		<div class="wechat-person"><strong>{t.name}</strong><span>{t.channel}</span></div>
+		<p class="wechat-number" dir="ltr">{wechatContact.displayNumber}</p>
+		<div class="wechat-actions">
+			<button type="button" data-wechat-copy={wechatContact.number} data-success={t.copied} data-failure={t.failed}>{t.copy}</button>
+			<a href={wechatContact.qrCode} download="wechat-xu.jpg">{t.save}</a>
+		</div>
+		<p class="wechat-status" role="status" aria-live="polite" aria-atomic="true"></p>
+	</div>
+	<figure class="wechat-qr">
+		<img src={wechatContact.qrCode} alt={t.qrAlt} width="679" height="661" loading="lazy" decoding="async" />
+		<figcaption>{t.scan}</figcaption>
+	</figure>
+</section>
+
+<script>
+	document.querySelectorAll<HTMLElement>('[data-wechat-contact]').forEach((contact) => {
+		const button = contact.querySelector<HTMLButtonElement>('[data-wechat-copy]');
+		const status = contact.querySelector<HTMLElement>('.wechat-status');
+		if (!button || !status) return;
+
+		button.addEventListener('click', async () => {
+			status.textContent = '';
+			try {
+				await navigator.clipboard.writeText(button.dataset.wechatCopy!);
+				status.textContent = button.dataset.success!;
+			} catch {
+				status.textContent = button.dataset.failure!;
+			}
+		});
+	});
+</script>
+
+<style>
+	.wechat-contact {
+		box-sizing: border-box;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 172px;
+		align-items: center;
+		gap: 24px;
+		margin: 32px 0 0;
+		padding: 24px;
+		border: 1px solid var(--line);
+		background: var(--panel);
+		color: var(--ink);
+		scroll-margin-top: 140px;
+	}
+	.wechat-contact--docs {
+		max-width: 840px;
+		margin: 48px auto 32px;
+	}
+	.wechat-details { min-width: 0; }
+	.wechat-contact :is(h2, h3) {
+		margin: 0;
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: 1.25rem;
+		line-height: 1.45;
+		text-wrap: balance;
+	}
+	.wechat-description {
+		margin: 10px 0 20px;
+		color: var(--muted);
+		font-size: .9rem;
+		line-height: 1.7;
+		text-wrap: pretty;
+	}
+	.wechat-person { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; line-height: 1.5; }
+	.wechat-person strong { font-size: 1rem; }
+	.wechat-person span { color: var(--muted); font-size: .8rem; }
+	.wechat-number {
+		margin: 6px 0 16px;
+		font-family: var(--font-mono);
+		font-size: clamp(1.1rem, 2vw, 1.4rem);
+		font-variant-numeric: tabular-nums;
+		line-height: 1.5;
+		user-select: all;
+	}
+	.wechat-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+	.wechat-actions button {
+		min-height: 44px;
+		padding: 10px 14px;
+		border: 1px solid var(--line);
+		background: var(--panel-strong);
+		color: var(--ink);
+		font: inherit;
+		font-size: .85rem;
+		cursor: pointer;
+	}
+	.wechat-actions button:hover { border-color: var(--neon-cyan); }
+	.wechat-actions a {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		color: var(--ink);
+		font-size: .85rem;
+		text-decoration: underline;
+		text-underline-offset: 4px;
+	}
+	.wechat-actions a:hover { text-decoration-thickness: 2px; }
+	.wechat-actions :is(button, a):focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+	.wechat-status { min-height: 1.5em; margin: 8px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+	.wechat-qr { margin: 0; text-align: center; }
+	.wechat-qr img { display: block; box-sizing: border-box; width: 100%; height: auto; padding: 8px; background: #fff; }
+	.wechat-qr figcaption { margin-top: 10px; color: var(--muted); font-size: .75rem; line-height: 1.6; text-wrap: pretty; }
+	@media (max-width: 540px) {
+		.wechat-contact { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 20px; }
+		.wechat-qr { width: 192px; max-width: 100%; justify-self: center; }
+	}
+</style>

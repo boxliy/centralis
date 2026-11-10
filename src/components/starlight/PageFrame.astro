@@ -1,7 +1,11 @@
 ---
+import WechatContact from '../WechatContact.astro';
+import { locales, type Locale } from '../../i18n/home';
+
 const { starlightRoute } = Astro.locals;
 const hasSidebar = Astro.slots.has('sidebar');
 const locale = starlightRoute.locale || 'root';
+const contactLocale: Locale = locales.find((item) => item === locale) ?? 'en';
 const copy = {
 	root: {
 		archive: 'QISHU DOCUMENT ARCHIVE',
@@ -42,5 +46,6 @@ const t = copy[locale as keyof typeof copy] ?? copy.root;
 			<slot name="sidebar" />
 			<slot />
 		</div>
+		<WechatContact locale={contactLocale} variant="docs" />
 	</main>
 </div>
